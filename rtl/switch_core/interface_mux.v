@@ -32,13 +32,13 @@ output             ptr_sfifo_empty
 );
 wire   [3:0]  source_portmap;
 wire          bp;
-(*MARK_DEBUG="true"*) reg    [3:0]  state;
+reg    [3:0]  state;
 reg           error;
-(*MARK_DEBUG="true"*) reg           sfifo_wr;
-(*MARK_DEBUG="true"*) reg   [7:0]   sfifo_din;
+reg           sfifo_wr;
+reg   [7:0]   sfifo_din;
 wire  [13:0]  sfifo_cnt;
-(*MARK_DEBUG="true"*) reg          ptr_sfifo_wr;
-(*MARK_DEBUG="true"*) reg   [15:0]  ptr_sfifo_din;
+reg          ptr_sfifo_wr;
+reg   [15:0]  ptr_sfifo_din;
 wire         ptr_sfifo_full;
 wire  [15:0]  rx_ptr_fifo_dout;
 wire  [7:0]   rx_data_fifo_dout;
@@ -47,6 +47,32 @@ reg          rx_data_fifo_rd;
 reg   [12:0]  cnt;
 reg   [1:0]   sel;
 reg   [1:0]   RR;
+
+// (*MARK_DEBUG="TRUE"*)   reg [15:0] dbg_ifmux_pkt;
+// (*MARK_DEBUG="TRUE"*)   reg [15:0] dbg_ifmux_bp_ptr;
+// (*MARK_DEBUG="TRUE"*)   reg [15:0] dbg_ifmux_bp_data;
+
+// always @(posedge clk or negedge rstn) begin
+//     if (!rstn) begin
+//         dbg_ifmux_pkt       <=  'b0;
+//         dbg_ifmux_bp_ptr    <=  'b0;
+//         dbg_ifmux_bp_data   <=  'b0;
+//     end
+//     else begin
+//         if ({rx_ptr_fifo_empty3, rx_ptr_fifo_empty2, rx_ptr_fifo_empty1, rx_ptr_fifo_empty0} != 'b0) begin
+//             if (ptr_sfifo_full) begin
+//                 dbg_ifmux_bp_ptr    <=  dbg_ifmux_bp_ptr + 1'b1;
+//             end
+//             if (sfifo_cnt>14866) begin
+//                 dbg_ifmux_bp_data   <=  dbg_ifmux_bp_data + 1'b1;
+//             end
+//         end
+//         if (ptr_sfifo_wr) begin
+//             dbg_ifmux_pkt   <=  dbg_ifmux_pkt + 1'b1;
+//         end
+//     end
+// end
+
 always@(posedge clk or negedge rstn)begin
     if(!rstn)begin
         state<=#2 0;
@@ -91,14 +117,15 @@ always@(posedge clk or negedge rstn)begin
 				end
 			end
         1:begin
-            if(RR==2'B11) RR<=#2 0;
-            else  RR<=#2 RR+1;
+            // if(RR==2'B11) RR<=#2 0;
+            // else  RR<=#2 RR+1;
+            RR<=sel+1;
             rx_ptr_fifo_rd<=#2 0;
             state<=#2 2;
             end
 		2:begin
             cnt<=#2 rx_ptr_fifo_dout[12:0];
-            error<=#2 rx_ptr_fifo_dout[14]|rx_ptr_fifo_dout[15];
+            error<=#2 rx_ptr_fifo_dout[13]|rx_ptr_fifo_dout[14]|rx_ptr_fifo_dout[15];
             rx_data_fifo_rd<=#2 1;
             state<=#2 3;
             end
@@ -172,7 +199,7 @@ sfifo_reg_w8_d16k    u_sfifo(
     .underflow(dbg_data_uf),
     .overflow(dbg_data_of)	
     );
-sfifo_w16_d32   u_ptr_sfifo(
+sfifo_w16_d128   u_ptr_sfifo(
     .clk(clk),
     .rst(!rstn),
     .din(ptr_sfifo_din),
