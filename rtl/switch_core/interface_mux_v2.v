@@ -56,7 +56,7 @@ module interface_mux_v2 #(
     reg     [IFMUX_PTR_WIDTH-1:0]   ptr_sfifo_din;
     wire                            ptr_sfifo_full;
     // src data fifo sel
-    reg     [ 3:0]  rx_data_fifo_rd;
+    (*EXTRACT_ENABLE = "no"*) reg     [ 3:0]  rx_data_fifo_rd;
     wire    [ 7:0]  rx_data_fifo_dout;
     // src ptr fifo sel
     reg     [ 3:0]                  rx_ptr_fifo_rd;
@@ -151,7 +151,8 @@ module interface_mux_v2 #(
                 rx_data_fifo_rd <=  ifmux_rr_vec_out;
             end
             // else if (ifmux_state_next == 1) begin
-            else if (ifmux_state_next[0]) begin
+            // else if (ifmux_state_next[0]) begin
+            else if (ifmux_state[5] && cnt_1 == 2'b11) begin
                 rx_data_fifo_rd <=  'b0;
             end
             // rx ptr read
