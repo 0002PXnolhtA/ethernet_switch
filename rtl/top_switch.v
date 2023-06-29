@@ -287,10 +287,10 @@ module top_switch (
         .RST(!rstn_mac)   // 1-bit input: Active high reset input
     );
 
-    mac_top #(
+    mac_top_v2 #(
         .MAC_PORT(0),
-        // .RX_DELAY(11)
-        .RX_DELAY(8)
+        .RX_DELAY(11)
+        // .RX_DELAY(8)
     ) u_mac_top_0 (
         .clk(clk),
         .clk_ref(clk_in),
@@ -355,10 +355,10 @@ module top_switch (
         .counter_ns(counter_ns)
     );
 
-    mac_top #(
+    mac_top_v2 #(
         .MAC_PORT(1),
-        // .RX_DELAY(10)
-        .RX_DELAY(2)
+        .RX_DELAY(9)
+        // .RX_DELAY(2)
     ) u_mac_top_1 (
         .clk(clk),
         .clk_ref(clk_in),
@@ -424,10 +424,10 @@ module top_switch (
 
     );
 
-    mac_top #(
+    mac_top_v2 #(
         .MAC_PORT(2),
-        // .RX_DELAY(9)
-        .RX_DELAY(0)
+        .RX_DELAY(9)
+        // .RX_DELAY(0)
     ) u_mac_top_2 (
         .clk(clk),
         .clk_ref(clk_in),
@@ -493,10 +493,10 @@ module top_switch (
 
     );
 
-    mac_top #(
+    mac_top_v2 #(
         .MAC_PORT(3),
-        // .RX_DELAY(9)
-        .RX_DELAY(4)
+        .RX_DELAY(9)
+        // .RX_DELAY(4)
     ) u_mac_top_3 (
         .clk(clk),
         .clk_ref(clk_in),
