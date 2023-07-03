@@ -323,7 +323,7 @@ reg     load_lldp;
 reg     load_req;
 reg     [12:0]  load_byte;
 reg     [2:0]   st_state;
-(*MARK_DEBUG="true"*) reg     [7:0]   st_type_state, st_type_state_next;
+reg     [7:0]   st_type_state, st_type_state_next;
 
 assign  nib_cnt_clr=(dv_sof & sfd) | ((st_state==1)& sfd);
 
@@ -387,7 +387,7 @@ always @(*) begin
     case(st_type_state)
         01: st_type_state_next  =   (nib_cnt_clr) ? 02 : 01;
         02: begin
-            if (byte_cnt == 12) begin
+            if (byte_cnt == 12 && byte_dv) begin
                 st_type_state_next  =   (data_ram_din == 8'h08) ? 08 : 04;
             end
             else begin
@@ -395,7 +395,7 @@ always @(*) begin
             end
         end
         04: begin
-            if (byte_cnt == 13) begin
+            if (byte_cnt == 13 && byte_dv) begin
                 st_type_state_next  =   16;
             end
             else begin
@@ -403,7 +403,7 @@ always @(*) begin
             end
         end
         08: begin
-            if (byte_cnt == 13) begin
+            if (byte_cnt == 13 && byte_dv) begin
                 st_type_state_next  =   (data_ram_din == TTE_VALUE)     ? 32 : 
                                         (data_ram_din == LLDP_VALUE_LO) ? 64 :
                                         16;
@@ -412,9 +412,9 @@ always @(*) begin
                 st_type_state_next  =   08;
             end
         end
-        16: st_type_state_next  =   (byte_cnt == 31) ? 128 : 16;
-        32: st_type_state_next  =   (byte_cnt == 31) ? 128 : 32;
-        64: st_type_state_next  =   (byte_cnt == 31) ? 128 : 64;
+        16: st_type_state_next  =   (byte_cnt == 31 && byte_dv) ? 128 : 16;
+        32: st_type_state_next  =   (byte_cnt == 31 && byte_dv) ? 128 : 32;
+        64: st_type_state_next  =   (byte_cnt == 31 && byte_dv) ? 128 : 64;
         128: st_type_state_next =   (st_state == 5)  ? 01 : 128;
         default: st_type_state_next = st_type_state;
     endcase
@@ -424,7 +424,7 @@ always @(posedge rx_clk or negedge rstn_mac) begin
     if (!rstn_mac) begin
         st_type_state   <=  1;
     end
-    else if (byte_dv) begin
+    else begin
         st_type_state   <=  st_type_state_next;
     end
 end
@@ -612,10 +612,10 @@ end
 //============================================  
 //crc signal.   
 //============================================ 
-(*MARK_DEBUG="true"*) reg     [7:0]   crc_din;
-(*MARK_DEBUG="true"*) wire    load_init;
-(*MARK_DEBUG="true"*) wire    calc;
-(*MARK_DEBUG="true"*) wire    d_valid;
+reg     [7:0]   crc_din;
+wire    load_init;
+wire    calc;
+wire    d_valid;
 wire    [31:0]  crc_result;
 
 // assign  load_init = nib_cnt_clr;
@@ -654,7 +654,7 @@ reg             data_fifo_wr;
 reg             data_fifo_wr_reg;
 wire            data_fifo_wr_dv;
 wire    [11:0]  data_fifo_depth;
-(*MARK_DEBUG="true"*) reg     [19:0]  ptr_fifo_din;
+reg     [19:0]  ptr_fifo_din;
 reg             ptr_fifo_wr;
 wire            ptr_fifo_full;
 

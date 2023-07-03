@@ -259,7 +259,7 @@ module mac_ctrl_v2 #(
                 mgnt_tx_buf                 <=  mgnt_reg_req_addr[7] ? 
                                                 mgnt_reg_lldp[mgnt_reg_req_addr[3:0]] :
                                                 mgnt_reg_req_addr[5] ? 
-                                                mgnt_reg_mdio[mgnt_reg_req_addr] : 
+                                                mgnt_reg_mdio[mgnt_reg_req_addr[3:0]] : 
                                                 mgnt_reg_req_addr[4] ? 
                                                 mgnt_reg_tx[mgnt_reg_req_addr] : 
                                                 mgnt_reg_rx[mgnt_reg_req_addr] ;

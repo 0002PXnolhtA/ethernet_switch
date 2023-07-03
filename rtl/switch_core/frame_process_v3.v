@@ -40,10 +40,10 @@ module frame_process_v3 (
     input              se_nak,
     input       [15:0] se_result,
     // reserved multicast flow table
-    (*MARK_DEBUG = "true"*) output reg         ftm_req_valid,
-    (*MARK_DEBUG = "true"*) input              ftm_resp_ack,
-    (*MARK_DEBUG = "true"*) input              ftm_resp_nak,
-    (*MARK_DEBUG = "true"*) input       [15:0] ftm_resp_result,
+    output reg         ftm_req_valid,
+    input              ftm_resp_ack,
+    input              ftm_resp_nak,
+    input       [15:0] ftm_resp_result,
 
     input       [ 3:0] link,
 
@@ -82,13 +82,13 @@ module frame_process_v3 (
     reg     [ 15:0]     frp_header;
     reg     [  3:0]     frp_lldp_prert;
     reg     [  5:0]     frp_broadcast;
-    (*MARK_DEBUG = "true"*) reg     [  3:0]     frp_multicast;
+    reg     [  3:0]     frp_multicast;
     reg     [  3:0]     frp_link_fwd;
     reg                 frp_link_src;
     reg                 frp_link_lrn;
     reg     [  3:0]     frp_route;
 
-    (*MARK_DEBUG = "true"*) reg     [ 10:0]     frp_cnt_front;
+    reg     [ 10:0]     frp_cnt_front;
     reg     [ 10:0]     frp_cnt_back;
     reg     [ 10:0]     frp_len;
     reg     [ 10:0]     frp_len_1;
@@ -418,7 +418,7 @@ module frame_process_v3 (
                     mgnt_flag[ 2:0] <=  3'b001;
                 end
             end
-            if (frp_cnt_front == 'hE) begin
+            if (frp_cnt_front == 'hF) begin
                 mgnt_flag[3]    <=  se_ack;
             end
             if (frp_cnt_front == 'hF) begin

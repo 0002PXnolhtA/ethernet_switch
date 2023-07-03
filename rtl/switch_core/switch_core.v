@@ -46,6 +46,14 @@ reg				FQ_rd;
 reg  [9:0]		FQ_dout;
 wire [9:0]		FQ_count;
 reg   			FQ_alloc;
+// always @(posedge clk) begin
+// 	if (!rstn) begin
+// 		FQ_alloc 	<=	1'b0;
+// 	end
+// 	else begin
+// 		FQ_alloc 	<=	|(FQ_count[9:6]);
+// 	end
+// end
 always @(posedge clk)
 	FQ_alloc 	<=	i_cell_ptr_fifo_empty ? |(FQ_count[9:6]) : |(FQ_count[9:6]) || (FQ_count[5:0] > i_cell_ptr_fifo_dout[5:0]);
 // wire			FQ_alloc;				//check FQ depth before initiate writing
@@ -158,7 +166,8 @@ always@(posedge clk or negedge rstn)
 				i_cell_data_fifo_rd<=#2  1;
 				i_cell_ptr_fifo_rd<=#2  1;
 				qc_portmap<=#2 i_cell_ptr_fifo_dout[11:8];
-				FQ_rd<=#2  1;
+				// FQ_rd<=#2 1;
+				FQ_rd<=#2 |(i_cell_ptr_fifo_dout[11:8]);
 				FQ_dout<=#2  ptr_dout_s;
 				cell_number[5:0]<=#2 i_cell_ptr_fifo_dout[5:0];
 				i_cell_first<=#2  1;
@@ -174,7 +183,8 @@ always@(posedge clk or negedge rstn)
 			if(qc_portmap[1])qc_wr_ptr_wr_en[1]<=#2  1;
 			if(qc_portmap[2])qc_wr_ptr_wr_en[2]<=#2  1;
 			if(qc_portmap[3])qc_wr_ptr_wr_en[3]<=#2  1;
-			MC_ram_wra<=#2  1;
+			// MC_ram_wra<=#2  1;
+			MC_ram_wra<=#2  FQ_rd;
 			wr_state<=#2  2;
 		  end
 		2:begin
@@ -189,7 +199,8 @@ always@(posedge clk or negedge rstn)
 			i_cell_first<=#2  0;
 			if(cell_number) begin
 				if(!FQ_empty)begin
-					FQ_rd		<=#2  1;
+					// FQ_rd		<=#2  1;
+					FQ_rd		<=#2  |(qc_portmap);
 					FQ_dout		<=#2  ptr_dout_s;
 					sram_cnt_a	<=#2  0;	
 					wr_state	<=#2  1;

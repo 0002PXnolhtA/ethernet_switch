@@ -407,7 +407,7 @@ module mac_t_gmii_tte_v5(
         end
     end
 
-    (*MARK_DEBUG="true"*) reg     [15:0]  ptp_state, ptp_state_next;
+    reg     [15:0]  ptp_state, ptp_state_next;
     
     always @(*) begin
         case(ptp_state)
@@ -666,12 +666,12 @@ module mac_t_gmii_tte_v5(
     // assign  counter_delay   =   {16'b0, ptp_delay_req, 16'b0};
     assign  delay_fifo_din  =   ptp_delay_req[31:0];
 
-    (*MARK_DEBUG = "true"*) reg     [ 5:0]  lldp_state, lldp_state_next;
-    (*MARK_DEBUG = "true"*) reg     [ 7:0]  lldp_buf;
-    (*MARK_DEBUG = "true"*) reg     [23:0]  lldp_cksm;
-    (*MARK_DEBUG = "true"*) reg     [15:0]  lldp_cksm_1;
-    (*MARK_DEBUG = "true"*) reg     [ 7:0]  lldp_data;
-    (*MARK_DEBUG = "true"*) reg             lldp_valid;
+    reg     [ 5:0]  lldp_state, lldp_state_next;
+    reg     [ 7:0]  lldp_buf;
+    reg     [23:0]  lldp_cksm;
+    reg     [15:0]  lldp_cksm_1;
+    reg     [ 7:0]  lldp_data;
+    reg             lldp_valid;
 
     always @(*) begin
         case(lldp_state)
@@ -681,7 +681,7 @@ module mac_t_gmii_tte_v5(
                                   (tx_data_in == LLDP_VALUE_HI) ? 08 : 01;
             08: lldp_state_next = (tx_cnt_front == 16 && tx_data_in == LLDP_VALUE_LO) ? 16 : 01;
             16: lldp_state_next = (tx_cnt_front == 42) ? 32 : 16;
-            32: lldp_state_next = (tx_cnt_back_1 == 62) ? 01 : 32;
+            32: lldp_state_next = (tx_cnt_back_1 == 63) ? 01 : 32;
             default: lldp_state_next = lldp_state;
         endcase
     end
@@ -702,8 +702,6 @@ module mac_t_gmii_tte_v5(
             lldp_buf    <=  'b0;
             lldp_cksm   <=  24'h90F1;
             lldp_cksm_1 <=  'b0;
-            lldp_valid  <=  'b0;
-            lldp_data   <=  'b0;
         end
         else if (speed[1] || !tx_read_req) begin
             lldp_buf    <=  tx_data_in;
@@ -764,14 +762,23 @@ module mac_t_gmii_tte_v5(
                     lldp_cksm   <=  {16'b0, lldp_cksm[23:16]} + {8'b0, lldp_cksm[15:0]};
                 end
             end
-            if (lldp_state[5]) begin
+        end
+    end
+
+    always @(posedge interface_clk or negedge rstn_mac) begin
+        if (!rstn_mac) begin
+            lldp_valid  <=  'b0;
+            lldp_data   <=  'b0;
+        end
+        else if (lldp_state[5]) begin
+            if (speed[1] || tx_read_req) begin
                 if (tx_cnt_back_1 == 40) begin
                     lldp_valid  <=  1'b1;
-                    lldp_data   <=  lldp_cksm[15:8];
+                    lldp_data   <=  ~lldp_cksm[15:8];
                 end
                 else if (tx_cnt_back_1 == 41) begin
                     lldp_valid  <=  1'b1;
-                    lldp_data   <=  lldp_cksm[7:0];
+                    lldp_data   <=  ~lldp_cksm[7:0];
                 end
                 else if (tx_cnt_back_1 == 56) begin
                     lldp_valid  <=  1'b1;
