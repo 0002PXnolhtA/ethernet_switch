@@ -20,7 +20,6 @@
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-
 module mac_r_gmii_tte_tb;
 
 // Inputs
@@ -41,15 +40,16 @@ reg	[63:0] counter_ns_gtx_delay;
 
 // Outputs
 wire [7:0] data_fifo_dout;
-wire [15:0] ptr_fifo_dout;
+wire [19:0] ptr_fifo_dout;
 wire ptr_fifo_empty;
 wire [7:0] tte_fifo_dout;
-wire [15:0] tteptr_fifo_dout;
+wire [19:0] tteptr_fifo_dout;
 wire tteptr_fifo_empty;
 wire gtx_clk;
 wire [15:0] status_fifo_dout;
 wire status_fifo_empty;
 
+parameter TAILTAG_MODE = "ON";
 
 always #4	rx_clk=~rx_clk;    //gmii
 // always #20	rx_clk=~rx_clk; //mii
@@ -67,7 +67,7 @@ initial begin
 reg [7:0] frame_lldp [67:0];
 
 // Instantiate the Unit Under Test (UUT)
-mac_r_gmii_tte mac_r_gmii (
+mac_r_gmii_tte_v3 mac_r_gmii (
 	.rstn_sys(rstn), 
 	.rstn_mac(rstn), 
 	.clk(clk),
@@ -103,7 +103,7 @@ initial begin
 	tte_fifo_rd = 0;
 	tteptr_fifo_rd = 0;
 	status_fifo_rd = 0;
-	speed[1:0] = 2'b01;//ethernet speed 00:10M 01:100M 10:1000M
+	speed[1:0] = 2'b10;//ethernet speed 00:10M 01:100M 10:1000M
 
     $readmemh("C:/Users/PC/Desktop/ethernet/ethernet_switch/tb/mac/gmii/lldp_1.txt",
         	  frame_lldp);
@@ -113,40 +113,40 @@ initial begin
     rstn=1;
 	// Add stimulus here
 	#800;
-	// send_lldp_frame_gmii(68,1'b0);
-    // repeat(22)@(posedge rx_clk);
-    // send_mac_frame_gmii(1515,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b0);
-	// repeat(22)@(posedge rx_clk);
-    // send_mac_frame_gmii(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b0);
-    // repeat(22)@(posedge rx_clk);		
-    // send_mac_frame_gmii(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b0);
-    // repeat(22)@(posedge rx_clk);
-    // send_mac_frame_gmii(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b1);
-    // repeat(22)@(posedge rx_clk);
-	// send_mac_frame_gmii(59,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0800,1'b1);
-    // repeat(22)@(posedge rx_clk);
-	// send_mac_frame_gmii(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0892,1'b1);
-    // repeat(22)@(posedge rx_clk);
-	// send_mac_frame_gmii(59,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0892,1'b1);
-    // repeat(22)@(posedge rx_clk);
-	// send_mac_frame_gmii(1515,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0892,1'b0);
-	send_lldp_frame(68,1'b0);
+	send_lldp_frame_gmii(68,1'b0);
     repeat(22)@(posedge rx_clk);
-	send_mac_frame(1515,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b0);
-    repeat(22)@(posedge rx_clk);		
-	send_mac_frame(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b0);
-    repeat(22)@(posedge rx_clk);	
-    send_mac_frame(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b1);
-    repeat(22)@(posedge rx_clk);
-	send_mac_frame(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b1);
-    repeat(22)@(posedge rx_clk);
-    send_mac_frame(59,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0800,1'b0);
-    repeat(22)@(posedge rx_clk);
-    send_mac_frame(59,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0892,1'b0);
-    repeat(22)@(posedge rx_clk);
-    send_mac_frame(1515,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0800,1'b0);
+    send_mac_frame_gmii(1515,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b0);
 	repeat(22)@(posedge rx_clk);
-	send_mac_frame(1515,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0892,1'b0);
+    send_mac_frame_gmii(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b0);
+    repeat(22)@(posedge rx_clk);		
+    send_mac_frame_gmii(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b0);
+    repeat(22)@(posedge rx_clk);
+    send_mac_frame_gmii(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b1);
+    repeat(22)@(posedge rx_clk);
+	send_mac_frame_gmii(59,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0800,1'b1);
+    repeat(22)@(posedge rx_clk);
+	send_mac_frame_gmii(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0892,1'b1);
+    repeat(22)@(posedge rx_clk);
+	send_mac_frame_gmii(59,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0892,1'b1);
+    repeat(22)@(posedge rx_clk);
+	send_mac_frame_gmii(1515,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0892,1'b0);
+	// send_lldp_frame(68,1'b0);
+    // repeat(22)@(posedge rx_clk);
+	// send_mac_frame(1515,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b0);
+    // repeat(22)@(posedge rx_clk);		
+	// send_mac_frame(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b0);
+    // repeat(22)@(posedge rx_clk);	
+    // send_mac_frame(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b1);
+    // repeat(22)@(posedge rx_clk);
+	// send_mac_frame(100,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h88f7,1'b1);
+    // repeat(22)@(posedge rx_clk);
+    // send_mac_frame(59,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0800,1'b0);
+    // repeat(22)@(posedge rx_clk);
+    // send_mac_frame(59,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0892,1'b0);
+    // repeat(22)@(posedge rx_clk);
+    // send_mac_frame(1515,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0800,1'b0);
+	// repeat(22)@(posedge rx_clk);
+	// send_mac_frame(1515,48'hf0f1f2f3f4f5,48'he0e1e2e3e4e5,16'h0892,1'b0);
     $finish;
 end
 
@@ -226,9 +226,17 @@ begin
 		repeat(1)@(posedge rx_clk);
 		#2;
 		end
-	
+
+	if (TAILTAG_MODE == "ON") begin
+		mii_din=(8'b1 << ({$random}%4));
+		calc_crc(mii_din,fcs);
+		gm_rx_d=mii_din;
+		repeat(1)@(posedge rx_clk);
+		#2;
+	end
+
 	if(crc_error_insert)fcs=~fcs;
-	
+
 	gm_rx_d=fcs[7:0];
 	repeat(1)@(posedge rx_clk);
 	#2;
@@ -278,8 +286,16 @@ begin
 		#2;
 		end
 	
+	if (TAILTAG_MODE == "ON") begin
+		mii_din=(8'b1 << ({$random}%4));
+		calc_crc(mii_din,fcs);
+		gm_rx_d=mii_din;
+		repeat(1)@(posedge rx_clk);
+		#2;
+	end
+
 	if(crc_error_insert)fcs=~fcs;
-	
+
 	gm_rx_d=fcs[7:0];
 	repeat(1)@(posedge rx_clk);
 	#2;
@@ -350,8 +366,19 @@ begin
 		#2;
 		end
 	
+	if (TAILTAG_MODE == "ON") begin
+		mii_din=(8'b1 << ({$random}%4));
+		calc_crc(mii_din,fcs);
+		gm_rx_d=mii_din[3:0];
+		repeat(1)@(posedge rx_clk);
+		#2;
+		gm_rx_d=mii_din[7:4];
+		repeat(1)@(posedge rx_clk);
+		#2;
+	end
+
 	if(crc_error_insert)fcs=~fcs;
-	
+
 	gm_rx_d=fcs[3:0];
 	repeat(1)@(posedge rx_clk);
 	#2;
@@ -417,6 +444,17 @@ begin
 		#2;
 		end
 	
+	if (TAILTAG_MODE == "ON") begin
+		mii_din=(8'b1 << ({$random}%4));
+		calc_crc(mii_din,fcs);
+		gm_rx_d=mii_din[3:0];
+		repeat(1)@(posedge rx_clk);
+		#2;
+		gm_rx_d=mii_din[7:4];
+		repeat(1)@(posedge rx_clk);
+		#2;
+	end
+
 	if(crc_error_insert)fcs=~fcs;
 	
 	gm_rx_d=fcs[3:0];

@@ -208,7 +208,7 @@ module mac_t_gmii_tte_tb_v2;
                 #2;
             end
             data_fifo_wr = 0;
-            ptr_fifo_din = {5'b0, len[10:0]};
+            ptr_fifo_din = {4'h1, 1'b0, len[10:0]};
             ptr_fifo_wr  = 1;
             repeat (1) @(posedge clk);
             #2;
@@ -233,7 +233,7 @@ module mac_t_gmii_tte_tb_v2;
                 #2;
             end
             tdata_fifo_wr = 0;
-            tptr_fifo_din = {5'b0, len[10:0]};
+            tptr_fifo_din = {4'h2, 1'b0, len[10:0]};
             tptr_fifo_wr  = 1;
             repeat (1) @(posedge clk);
             #2;
@@ -259,7 +259,7 @@ module mac_t_gmii_tte_tb_v2;
                 #2;
             end
             data_fifo_wr = 0;
-            ptr_fifo_din = {5'b0, len[10:0]};
+            ptr_fifo_din = {4'h4, 1'b0, len[10:0]};
             ptr_fifo_wr  = 1;
             repeat (1) @(posedge clk);
             #2;
@@ -285,7 +285,7 @@ module mac_t_gmii_tte_tb_v2;
                 #2;
             end
             data_fifo_wr = 0;
-            ptr_fifo_din = {5'b0, len[10:0]};
+            ptr_fifo_din = {4'h8, 1'b0, len[10:0]};
             ptr_fifo_wr  = 1;
             repeat (1) @(posedge clk);
             #2;
@@ -311,7 +311,7 @@ module mac_t_gmii_tte_tb_v2;
                 #2;
             end
             data_fifo_wr = 0;
-            ptr_fifo_din = {5'b0, len[10:0]};
+            ptr_fifo_din = {4'h0, 1'b0, len[10:0]};
             ptr_fifo_wr  = 1;
             repeat (1) @(posedge clk);
             #2;
