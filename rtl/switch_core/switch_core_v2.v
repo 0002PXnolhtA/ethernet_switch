@@ -163,7 +163,7 @@ always@(posedge clk or negedge rstn)
 				// i_cell_data_fifo_rd<=#2  1;
 				i_cell_ptr_fifo_rd<=#2  1;
 				qc_portmap<=#2 i_cell_ptr_fifo_dout[11:8];
-				FQ_rd<=#2  1;
+				FQ_rd<=#2 |(i_cell_ptr_fifo_dout[11:8]);
 				FQ_dout<=#2  ptr_dout_s;
 				// cell_number[5:0]<=#2 i_cell_ptr_fifo_dout[5:0];
 				cell_number[7:0]<=#2 i_cell_ptr_fifo_dout[7:0];
@@ -183,7 +183,7 @@ always@(posedge clk or negedge rstn)
 			if(qc_portmap[1])qc_wr_ptr_wr_en[1]<=#2  1;
 			if(qc_portmap[2])qc_wr_ptr_wr_en[2]<=#2  1;
 			if(qc_portmap[3])qc_wr_ptr_wr_en[3]<=#2  1;
-			MC_ram_wra<=#2  1;
+			MC_ram_wra<=#2  FQ_rd;
 			wr_state<=#2  2;
 		  end
 		2:begin
@@ -198,7 +198,7 @@ always@(posedge clk or negedge rstn)
 			i_cell_first<=#2  0;
 			// if(cell_number) begin
 			if(pad_count) begin
-				FQ_rd		<=#2  1;
+				FQ_rd		<=#2  |(qc_portmap);
 				FQ_dout		<=#2  ptr_dout_s;
 				sram_cnt_a	<=#2  0;	
 				wr_state	<=#2  1;
@@ -239,7 +239,7 @@ always @(posedge clk or negedge rstn) begin
 			// sram_wr_a 	<= 	'b1;
 		end
 		if (wr_state == 0 && !i_cell_ptr_fifo_empty && !qc_ptr_full && FQ_alloc && FQ_act) begin
-			sram_wr_a	<= 	'b1;
+			sram_wr_a	<= 	|(i_cell_ptr_fifo_dout[11:8]);
 			i_cell_data_fifo_rd	<=	'b1;
 		end
 		else if (wr_state != 0 && cell_count == cell_number) begin

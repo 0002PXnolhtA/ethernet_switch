@@ -82,13 +82,13 @@ module frame_process_v3 (
     reg     [ 15:0]     frp_header;
     reg     [  3:0]     frp_lldp_prert;
     reg     [  5:0]     frp_broadcast;
-    (*MARK_DEBUG = "true"*) reg     [  3:0]     frp_multicast;
+    reg     [  3:0]     frp_multicast;
     reg     [  3:0]     frp_link_fwd;
     reg                 frp_link_src;
     reg                 frp_link_lrn;
     reg     [  3:0]     frp_route;
 
-    (*MARK_DEBUG = "true"*) reg     [ 10:0]     frp_cnt_front;
+    reg     [ 10:0]     frp_cnt_front;
     reg     [ 10:0]     frp_cnt_back;
     reg     [ 10:0]     frp_len;
     reg     [ 10:0]     frp_len_1;
@@ -418,7 +418,7 @@ module frame_process_v3 (
                     mgnt_flag[ 2:0] <=  3'b001;
                 end
             end
-            if (frp_cnt_front == 'hE) begin
+            if (frp_cnt_front == 'hF) begin
                 mgnt_flag[3]    <=  se_ack;
             end
             if (frp_cnt_front == 'hF) begin
