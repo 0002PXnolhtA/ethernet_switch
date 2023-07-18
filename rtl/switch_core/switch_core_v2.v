@@ -51,7 +51,7 @@ reg  [9:0]		FQ_dout;
 wire [9:0]		FQ_count;
 reg   			FQ_alloc;
 always @(posedge clk)
-	FQ_alloc 	<=	i_cell_ptr_fifo_empty ? |(FQ_count[9:6]) : |(FQ_count[9:6]) || (FQ_count[5:0] > i_cell_ptr_fifo_dout[7:2]);
+	FQ_alloc 	<=	i_cell_ptr_fifo_empty ? |(FQ_count[9:5]) : |(FQ_count[9:5]) || (FQ_count[4:0] > i_cell_ptr_fifo_dout[6:2]);
 // wire			FQ_alloc;	//check FQ depth before initiate writing
 // assign 			FQ_alloc = |(FQ_count[9:6]) || (i_cell_ptr_fifo_dout[5:0] > FQ_count[5:0]);
 // assign 			FQ_alloc = |(FQ_count[9:6]) || (FQ_count[5:0] > i_cell_ptr_fifo_dout[7:2]);
@@ -113,7 +113,7 @@ sfifo_ft_reg_w128_d256 u_i_cell_fifo(
   .overflow(dbg_i_data_of)
 );
 always @(posedge clk) 
-	i_cell_bp<=#2 (i_cell_data_fifo_depth[8:0]>161) | i_cell_ptr_fifo_full;
+	i_cell_bp<=#2 (i_cell_data_fifo_depth[8:0]>160) | i_cell_ptr_fifo_full;
 
 sfifo_ft_w16_d32 u_ptr_fifo (
   .clk(clk), 					// input clk
@@ -179,11 +179,12 @@ always@(posedge clk or negedge rstn)
 			pad_count<=#2 pad_count-1;
 			sram_cnt_a<=#2 1;
 			qc_wr_ptr_din<=#2  {i_cell_last,i_cell_first,4'b0,FQ_dout};
-			if(qc_portmap[0])qc_wr_ptr_wr_en[0]<=#2  1;
-			if(qc_portmap[1])qc_wr_ptr_wr_en[1]<=#2  1;
-			if(qc_portmap[2])qc_wr_ptr_wr_en[2]<=#2  1;
-			if(qc_portmap[3])qc_wr_ptr_wr_en[3]<=#2  1;
-			MC_ram_wra<=#2  FQ_rd;
+			qc_wr_ptr_wr_en<=#2 qc_portmap;
+			// if(qc_portmap[0])qc_wr_ptr_wr_en[0]<=#2  1;
+			// if(qc_portmap[1])qc_wr_ptr_wr_en[1]<=#2  1;
+			// if(qc_portmap[2])qc_wr_ptr_wr_en[2]<=#2  1;
+			// if(qc_portmap[3])qc_wr_ptr_wr_en[3]<=#2  1;
+			MC_ram_wra<=#2 |(qc_portmap);
 			wr_state<=#2  2;
 		  end
 		2:begin

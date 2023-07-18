@@ -77,7 +77,7 @@ module switch_post (
             if (mstate == 0) byte_cnt <= 3;
             else if (byte_dv) byte_cnt <= #2 byte_cnt + 1;
             if (mstate == 1) byte_dv <= 1;
-            else if (byte_cnt == frame_len) byte_dv <= 0;
+            else if (byte_cnt == frame_len || mstate == 0) byte_dv <= 0;
             case (mstate)
                 0: begin
                     // byte_dv  <= #2 0;
