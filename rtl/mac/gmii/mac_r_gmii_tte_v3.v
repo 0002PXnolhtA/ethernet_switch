@@ -357,26 +357,14 @@ always @(posedge rx_clk  or negedge rstn_mac)
             else st_state<=#DELAY 0;
             end
         2:begin
-            if(byte_cnt==13 & byte_dv)begin
-                st_state<=#DELAY 3;
-            end
-            else if(dv_eof | (!rx_dv_reg0))begin
-                fv<=#DELAY 0;
-                st_state<=#DELAY 0;
-            end
-        end
-        3:begin
-            st_state<=#DELAY 4;
-        end
-        4:begin
             if(dv_eof | (!rx_dv_reg0) | byte_bp)begin
                 fv<=#DELAY 0;
                 load_byte<=#DELAY byte_cnt;
                 load_req<=#DELAY 1;
-                st_state<=#DELAY 5;
+                st_state<=#DELAY 3;
                 end
             end
-        5:begin
+        3:begin
             load_req<=#DELAY 0;
             st_state<=#DELAY 0;
         end
@@ -387,7 +375,10 @@ always @(*) begin
     case(st_type_state)
         01: st_type_state_next  =   (nib_cnt_clr) ? 02 : 01;
         02: begin
-            if (byte_cnt == 12 && byte_dv) begin
+            if (dv_eof || !rx_dv_reg0) begin
+                st_type_state_next  =   01;
+            end
+            else if (byte_cnt == 12 && byte_dv) begin
                 st_type_state_next  =   (data_ram_din == 8'h08) ? 08 : 04;
             end
             else begin
@@ -395,7 +386,10 @@ always @(*) begin
             end
         end
         04: begin
-            if (byte_cnt == 13 && byte_dv) begin
+            if (dv_eof || !rx_dv_reg0) begin
+                st_type_state_next  =   01;
+            end
+            else if (byte_cnt == 13 && byte_dv) begin
                 st_type_state_next  =   16;
             end
             else begin
@@ -403,7 +397,10 @@ always @(*) begin
             end
         end
         08: begin
-            if (byte_cnt == 13 && byte_dv) begin
+            if (dv_eof || !rx_dv_reg0) begin
+                st_type_state_next  =   01;
+            end
+            else if (byte_cnt == 13 && byte_dv) begin
                 st_type_state_next  =   (data_ram_din == TTE_VALUE)     ? 32 : 
                                         (data_ram_din == LLDP_VALUE_LO) ? 64 :
                                         16;
@@ -412,10 +409,13 @@ always @(*) begin
                 st_type_state_next  =   08;
             end
         end
-        16: st_type_state_next  =   (byte_cnt == 31 && byte_dv) ? 128 : 16;
-        32: st_type_state_next  =   (byte_cnt == 31 && byte_dv) ? 128 : 32;
-        64: st_type_state_next  =   (byte_cnt == 31 && byte_dv) ? 128 : 64;
-        128: st_type_state_next =   (st_state == 5)  ? 01 : 128;
+        16: st_type_state_next  =   (dv_eof || !rx_dv_reg0)     ? 01  :
+                                    (byte_cnt == 31 && byte_dv) ? 128 : 16;
+        32: st_type_state_next  =   (dv_eof || !rx_dv_reg0)     ? 01  :
+                                    (byte_cnt == 31 && byte_dv) ? 128 : 32;
+        64: st_type_state_next  =   (dv_eof || !rx_dv_reg0)     ? 01  :
+                                    (byte_cnt == 31 && byte_dv) ? 128 : 64;
+        128: st_type_state_next =   (st_state == 3)  ? 01 : 128;
         default: st_type_state_next = st_type_state;
     endcase
 end
@@ -1740,20 +1740,21 @@ end
 //fifo used. 
 //============================================  
 
-(*MARK_DEBUG="true"*) wire dbg_data_empty;
+(*MARK_DEBUG = "true"*) wire        dbg_data_empty;
+(*MARK_DEBUG = "true"*) wire [11:0] dbg_data_fifo_depth;
 
 afifo_reg_w8_d4k u_data_fifo (
-  .rst(!rstn_sys),                  // input rst
-  .wr_clk(rx_clk),                  // input wr_clk
-  .rd_clk(clk),                     // input rd_clk
-  .din(data_fifo_din),              // input [7 : 0] din
-  .wr_en(data_fifo_wr_dv),          // input wr_en
-  .rd_en(data_fifo_rd),             // input rd_en
-  .dout(data_fifo_dout),            // output [7 : 0]       
+  .rst(!rstn_sys),                      // input rst
+  .wr_clk(rx_clk),                      // input wr_clk
+  .rd_clk(clk),                         // input rd_clk
+  .din(data_fifo_din),                  // input [7 : 0] din
+  .wr_en(data_fifo_wr_dv),              // input wr_en
+  .rd_en(data_fifo_rd),                 // input rd_en
+  .dout(data_fifo_dout),                // output [7 : 0]       
   .full(), 
   .empty(dbg_data_empty), 
-  .rd_data_count(), 				// output [11 : 0] rd_data_count
-  .wr_data_count(data_fifo_depth) 	// output [11 : 0] wr_data_count
+  .rd_data_count(dbg_data_fifo_depth),  // output [11 : 0] rd_data_count
+  .wr_data_count(data_fifo_depth) 	    // output [11 : 0] wr_data_count
 );
 
 afifo_w20_d32 u_ptr_fifo (

@@ -59,7 +59,8 @@ reg   			FQ_alloc;
 // 	end
 // end
 always @(posedge clk)
-	FQ_alloc 	<=	i_cell_ptr_fifo_empty ? |(FQ_count[9:6]) : |(FQ_count[9:6]) || (FQ_count[5:0] > i_cell_ptr_fifo_dout[7:2]);
+	// FQ_alloc 	<=	i_cell_ptr_fifo_empty ? |(FQ_count[9:5]) : (|(FQ_count[9:5]) || (FQ_count[4:0] > i_cell_ptr_fifo_dout[6:2]));
+	FQ_alloc 	<=	|(FQ_count[9:5]);
 // wire			FQ_alloc;	//check FQ depth before initiate writing
 // assign 			FQ_alloc = |(FQ_count[9:6]) || (i_cell_ptr_fifo_dout[5:0] > FQ_count[5:0]);
 // assign 			FQ_alloc = |(FQ_count[9:6]) || (FQ_count[5:0] > i_cell_ptr_fifo_dout[7:2]);
@@ -121,7 +122,7 @@ sfifo_ft_reg_w128_d256 u_i_cell_fifo(
   .overflow(dbg_i_data_of)
 );
 always @(posedge clk) 
-	i_cell_bp<=#2 (i_cell_data_fifo_depth[8:0]>161) | i_cell_ptr_fifo_full;
+	i_cell_bp<=#2 (i_cell_data_fifo_depth[8:0]>160) | i_cell_ptr_fifo_full;
 
 sfifo_ft_w16_d32 u_ptr_fifo (
   .clk(clk), 					// input clk
@@ -160,11 +161,11 @@ always@(posedge clk or negedge rstn)
 		FQ_rd<=#2  0;
 		qc_wr_ptr_wr_en<=#2  0;
 		i_cell_ptr_fifo_rd<=#2  0;
+		i_cell_first<=#2 0;
+		i_cell_last<=#2 0;
 		case(wr_state)
 		0:begin
 			sram_cnt_a<=#2  0;
-			i_cell_last<=#2 0;
-			i_cell_first<=#2 0;
 			// if(!i_cell_ptr_fifo_empty & !qc_ptr_full & !FQ_empty & FQ_act)begin
 			// bug fixed version, check for FQ depth before continue
 			if(!i_cell_ptr_fifo_empty && !qc_ptr_full && FQ_alloc && FQ_act)begin
@@ -172,7 +173,7 @@ always@(posedge clk or negedge rstn)
 				i_cell_ptr_fifo_rd<=#2  1;
 				qc_portmap<=#2 i_cell_ptr_fifo_dout[11:8];
 				// FQ_rd<=#2 1;
-				FQ_rd<=#2  |(i_cell_ptr_fifo_dout[11:8]);
+				FQ_rd<=#2  (i_cell_ptr_fifo_dout[11:8] != 4'b0);
 				FQ_dout<=#2  ptr_dout_s;
 				// cell_number[5:0]<=#2 i_cell_ptr_fifo_dout[5:0];
 				cell_number[7:0]<=#2 i_cell_ptr_fifo_dout[7:0];
@@ -188,12 +189,13 @@ always@(posedge clk or negedge rstn)
 			pad_count<=#2 pad_count-1;
 			sram_cnt_a<=#2 1;
 			qc_wr_ptr_din<=#2  {i_cell_last,i_cell_first,4'b0,FQ_dout};
-			if(qc_portmap[0])qc_wr_ptr_wr_en[0]<=#2  1;
-			if(qc_portmap[1])qc_wr_ptr_wr_en[1]<=#2  1;
-			if(qc_portmap[2])qc_wr_ptr_wr_en[2]<=#2  1;
-			if(qc_portmap[3])qc_wr_ptr_wr_en[3]<=#2  1;
+			qc_wr_ptr_wr_en<=#2 qc_portmap;
+			// if(qc_portmap[0])qc_wr_ptr_wr_en[0]<=#2  1;
+			// if(qc_portmap[1])qc_wr_ptr_wr_en[1]<=#2  1;
+			// if(qc_portmap[2])qc_wr_ptr_wr_en[2]<=#2  1;
+			// if(qc_portmap[3])qc_wr_ptr_wr_en[3]<=#2  1;
 			// MC_ram_wra<=#2  1;
-			MC_ram_wra<=#2  FQ_rd;
+			MC_ram_wra<=#2  (qc_portmap != 4'b0);
 			wr_state<=#2  2;
 		  end
 		2:begin
@@ -205,16 +207,16 @@ always@(posedge clk or negedge rstn)
 			wr_state<=#2  4;
 		  end
 		4:begin
-			i_cell_first<=#2  0;
+			// i_cell_first<=#2  0;
 			// if(cell_number) begin
 			if(pad_count) begin
 				// FQ_rd		<=#2  1;
-				FQ_rd 		<=#2  |(qc_portmap);
+				FQ_rd 		<=#2  (qc_portmap != 4'b0);
 				FQ_dout		<=#2  ptr_dout_s;
 				sram_cnt_a	<=#2  0;	
 				wr_state	<=#2  1;
 				if(pad_count==1) i_cell_last<=#2 1;
-				else i_cell_last<=#2 0;
+				// else i_cell_last<=#2 0;
 				// if(!FQ_empty)begin
 				// 	FQ_rd		<=#2  1;
 				// 	FQ_dout		<=#2  ptr_dout_s;
@@ -250,7 +252,8 @@ always @(posedge clk or negedge rstn) begin
 			// sram_wr_a 	<= 	'b1;
 		end
 		if (wr_state == 0 && !i_cell_ptr_fifo_empty && !qc_ptr_full && FQ_alloc && FQ_act) begin
-			sram_wr_a	<= 	'b1;
+			// sram_wr_a	<= 	'b1;
+			sram_wr_a 	<= 	(i_cell_ptr_fifo_dout[11:8] != 4'b0);
 			i_cell_data_fifo_rd	<=	'b1;
 		end
 		else if (wr_state != 0 && cell_count == cell_number) begin
@@ -368,7 +371,10 @@ always@(posedge clk or negedge rstn)
 		4:begin
 			sram_cnt_b<=#2  sram_cnt_b+1;
 			MC_ram_wrb<=#2  1;
-			if(MC_ram_doutb==1)	
+			// if(MC_ram_doutb==0)
+			// 	MC_ram_dinb<=#2  0;
+			// else if(MC_ram_doutb==1)
+			if(MC_ram_doutb==1)
 				begin
 				MC_ram_dinb<=#2  0;
 				FQ_wr<=#2  1;

@@ -77,7 +77,7 @@ module switch_post (
             if (mstate == 0) byte_cnt <= 3;
             else if (byte_dv) byte_cnt <= #2 byte_cnt + 1;
             if (mstate == 1) byte_dv <= 1;
-            else if (byte_cnt == frame_len) byte_dv <= 0;
+            else if (byte_cnt == frame_len || mstate == 0) byte_dv <= 0;
             case (mstate)
                 0: begin
                     // byte_dv  <= #2 0;
@@ -97,7 +97,9 @@ module switch_post (
                         // frame_port_src <= #2 o_cell_data_fifo_dout[123:120];
                         frame_port_src <= #2 o_cell_data_fifo_dout[127:124];
                         mstate <= #2 1;
-                    end else if (!o_cell_data_fifo_empty & !bp) begin
+                    end 
+                    // else if (!o_cell_data_fifo_empty && !o_cell_data_fifo_dout[143]) begin
+                    else if (!o_cell_data_fifo_empty & !bp) begin
                         mstate <= #2 19;
                     end
                 end

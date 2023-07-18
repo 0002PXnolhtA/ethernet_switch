@@ -84,8 +84,9 @@ module interface_mux_v3 (
             02: ifmux_state_next    =   4;
             04: ifmux_state_next    =   8;
             08: ifmux_state_next    =   16;
-            16: ifmux_state_next    =   (cnt != cnt_tgt) ? 16 :
-                                        tailtag ? 32 : 64;
+            16: ifmux_state_next    =   (cnt == cnt_tgt && tailtag)  ? 32 :
+                                        (cnt == cnt_tgt && !tailtag) ? 64 :
+                                        16;
             32: ifmux_state_next    =   64;
             64: ifmux_state_next    =   (cnt_1 == 2'b11) ? 1 : 64;
             default: ifmux_state_next = ifmux_state;
@@ -123,6 +124,7 @@ module interface_mux_v3 (
             // cnt_1           <=  'b0;
             // cnt_tgt         <=  'b0;
             // error           <=  'b0;
+            // tailtag         <=  'b0;
             sfifo_en        <=  'b0;
             sfifo_wr        <=  'b0;
             ptr_sfifo_wr    <=  'b0;

@@ -307,7 +307,7 @@ module mac_t_gmii_tte_v5(
             // 'd16: tx_state_next = (tx_cnt_back == 12'hFF8) ? 'd32 : 'd16;
             // 'd16: tx_state_next = (tx_cnt_back_1 == 12'hFFA) && (speed[1] || tx_read_req)? 'd32 : 'd16;
             // 'd32: tx_state_next = (tx_cnt_front_1 == 1) && (speed[1] || tx_read_req)? 'd1 : 'd32; 
-            'd16: tx_state_next = (tx_cnt_front_1 == 'h17) ? 'd1 : 'd16;
+            'd16: tx_state_next = (tx_cnt_front_1 == 'h18) ? 'd1 : 'd16;
             default: tx_state_next = tx_state;
         endcase
     end
@@ -345,7 +345,7 @@ module mac_t_gmii_tte_v5(
                 end
             end
             else begin
-                tx_cnt_front_1  <=  speed[1] ? 'h2 : 'b0;
+                tx_cnt_front_1  <=  speed[1] ? 'h3 : 'b0;
             end
             tx_byte_valid   <=  {tx_byte_valid[0], (data_fifo_rd || tdata_fifo_rd)};
         end
