@@ -3,7 +3,7 @@ module switch_post (
     input clk,
     input rstn,
 
-    input              o_cell_data_fifo_wr,
+    (*MARK_DEBUG="true"*) input              o_cell_data_fifo_wr,
     input      [127:0] o_cell_data_fifo_din,
     input              o_cell_data_first,
     input              o_cell_data_last,
@@ -21,6 +21,22 @@ module switch_post (
     wire  [143:0] o_cell_data_fifo_dout;
     wire   o_cell_data_fifo_empty;
     wire  [8:0]  o_cell_data_fifo_depth;
+
+    // (*MARK_DEBUG="true"*) reg  [6:0]        swpost_input_len;
+
+    // always @(posedge clk) begin
+    //     if (!rstn) begin
+    //         swpost_input_len    <=  'b1;
+    //     end
+    //     else if (o_cell_data_fifo_wr) begin
+    //         if (o_cell_data_first) begin
+    //             swpost_input_len    <=  'b1;
+    //         end
+    //         else begin
+    //             swpost_input_len    <=  swpost_input_len + 1'b1;
+    //         end
+    //     end
+    // end
 
     sfifo_ft_reg_w144_d256 u_o_cell_fifo (
         .clk(clk),
@@ -100,6 +116,7 @@ module switch_post (
                     end 
                     // else if (!o_cell_data_fifo_empty && !o_cell_data_fifo_dout[143]) begin
                     else if (!o_cell_data_fifo_empty & !bp) begin
+                        o_cell_data_fifo_rd <= #2 1;
                         mstate <= #2 19;
                     end
                 end
@@ -191,7 +208,7 @@ module switch_post (
                     mstate <= #2 0;
                 end
                 19: begin
-                    o_cell_data_fifo_rd <= #2 1;
+                    // o_cell_data_fifo_rd <= #2 1;
                     mstate <= #2 0;
                 end
             endcase

@@ -699,7 +699,7 @@ always @(posedge rx_clk or negedge rstn_mac)
         end
 
 wire    bp;
-assign  bp=(data_fifo_depth>2564) | ptr_fifo_full;
+assign  bp=(data_fifo_depth>2560) || ptr_fifo_full;
 
 reg     [2:0]   be_state;
 
@@ -1690,7 +1690,7 @@ always @(posedge rx_clk or negedge rstn_mac)
         end
 
 wire    tte_bp;
-assign  tte_bp=(tte_fifo_depth>2564) | tteptr_fifo_full;
+assign  tte_bp=(tte_fifo_depth>2560) || tteptr_fifo_full;
 
 reg     [2:0]   tte_state;
 always @(posedge rx_clk  or negedge rstn_mac)
