@@ -179,10 +179,11 @@ always@(posedge clk or negedge rstn)
 			cell_number<=#2 cell_number-1;
 			sram_cnt_a<=#2 1;
 			qc_wr_ptr_din<=#2  {i_cell_last,i_cell_first,4'b0,FQ_dout};
-			if(qc_portmap[0])qc_wr_ptr_wr_en[0]<=#2  1;
-			if(qc_portmap[1])qc_wr_ptr_wr_en[1]<=#2  1;
-			if(qc_portmap[2])qc_wr_ptr_wr_en[2]<=#2  1;
-			if(qc_portmap[3])qc_wr_ptr_wr_en[3]<=#2  1;
+			qc_wr_ptr_wr_en<=#2 qc_portmap;
+			// if(qc_portmap[0])qc_wr_ptr_wr_en[0]<=#2  1;
+			// if(qc_portmap[1])qc_wr_ptr_wr_en[1]<=#2  1;
+			// if(qc_portmap[2])qc_wr_ptr_wr_en[2]<=#2  1;
+			// if(qc_portmap[3])qc_wr_ptr_wr_en[3]<=#2  1;
 			// MC_ram_wra<=#2  1;
 			MC_ram_wra<=#2  FQ_rd;
 			wr_state<=#2  2;
@@ -230,6 +231,7 @@ wire [15:0]		qc_rd_ptr_dout0,qc_rd_ptr_dout1,
 reg  [1:0]		RR;
 reg  [3:0]		ptr_ack;
 wire [3:0]		ptr_rd_req_pre;
+reg  [3:0]		ptr_rd_req;
 
 wire			ptr_rdy0,ptr_rdy1,ptr_rdy2,ptr_rdy3;		
 wire			ptr_ack0,ptr_ack1,ptr_ack2,ptr_ack3;
@@ -252,7 +254,7 @@ always@(posedge clk or negedge rstn)
 		MC_ram_dinb<=#2  0;
 		RR<=#2  0;
 		ptr_ack<=#2  0;
-		
+		ptr_rd_req<=#2 0;
 		sram_rd<=#2  0;
 		sram_rd_dv<=#2  0;
 		sram_cnt_b<=#2  0;
@@ -269,7 +271,10 @@ always@(posedge clk or negedge rstn)
 		0:begin
 			sram_rd<=#2  0;
 			sram_cnt_b<=#2  0;
-			if(ptr_rd_req_pre)	rd_state<=#2  1;	
+			if(ptr_rd_req_pre)begin
+				ptr_rd_req<=#2 ptr_rd_req_pre;
+				rd_state<=#2  1;
+			end
 			end
 		1:begin
 			rd_state<=#2  2;
@@ -277,7 +282,7 @@ always@(posedge clk or negedge rstn)
 			// RR<=#2 RR+2'b01;
 			case(RR)						
 				0:begin							
-					casex(ptr_rd_req_pre[3:0])  
+					casex(ptr_rd_req[3:0])	//assert to have at least one "1"
 					4'bxxx1:begin FQ_din<=#2  qc_rd_ptr_dout0; o_cell_fifo_sel<=#2  4'b0001; ptr_ack<=#2  4'b0001; RR<=1; end
 					4'bxx10:begin FQ_din<=#2  qc_rd_ptr_dout1; o_cell_fifo_sel<=#2  4'b0010; ptr_ack<=#2  4'b0010; RR<=2; end
 					4'bx100:begin FQ_din<=#2  qc_rd_ptr_dout2; o_cell_fifo_sel<=#2  4'b0100; ptr_ack<=#2  4'b0100; RR<=3; end
@@ -285,7 +290,7 @@ always@(posedge clk or negedge rstn)
 					endcase
 				end
 				1:begin
-					casex({ptr_rd_req_pre[0],ptr_rd_req_pre[3:1]})
+					casex({ptr_rd_req[0],ptr_rd_req[3:1]})
 					4'bxxx1:begin FQ_din<=#2  qc_rd_ptr_dout1; o_cell_fifo_sel<=#2  4'b0010; ptr_ack<=#2  4'b0010; RR<=2; end
 					4'bxx10:begin FQ_din<=#2  qc_rd_ptr_dout2; o_cell_fifo_sel<=#2  4'b0100; ptr_ack<=#2  4'b0100; RR<=3; end
 					4'bx100:begin FQ_din<=#2  qc_rd_ptr_dout3; o_cell_fifo_sel<=#2  4'b1000; ptr_ack<=#2  4'b1000; RR<=0; end
@@ -293,7 +298,7 @@ always@(posedge clk or negedge rstn)
 					endcase
 				end
 				2:begin
-					casex({ptr_rd_req_pre[1:0],ptr_rd_req_pre[3:2]})
+					casex({ptr_rd_req[1:0],ptr_rd_req[3:2]})
 					4'bxxx1:begin FQ_din<=#2  qc_rd_ptr_dout2; o_cell_fifo_sel<=#2  4'b0100; ptr_ack<=#2  4'b0100; RR<=3; end
 					4'bxx10:begin FQ_din<=#2  qc_rd_ptr_dout3; o_cell_fifo_sel<=#2  4'b1000; ptr_ack<=#2  4'b1000; RR<=0; end
 					4'bx100:begin FQ_din<=#2  qc_rd_ptr_dout0; o_cell_fifo_sel<=#2  4'b0001; ptr_ack<=#2  4'b0001; RR<=1; end
@@ -301,7 +306,7 @@ always@(posedge clk or negedge rstn)
 					endcase
 				end
 				3:begin
-					casex({ptr_rd_req_pre[2:0],ptr_rd_req_pre[3]})
+					casex({ptr_rd_req[2:0],ptr_rd_req[3]})
 					4'bxxx1:begin FQ_din<=#2  qc_rd_ptr_dout3; o_cell_fifo_sel<=#2  4'b1000; ptr_ack<=#2  4'b1000; RR<=0; end
 					4'bxx10:begin FQ_din<=#2  qc_rd_ptr_dout0; o_cell_fifo_sel<=#2  4'b0001; ptr_ack<=#2  4'b0001; RR<=1; end
 					4'bx100:begin FQ_din<=#2  qc_rd_ptr_dout1; o_cell_fifo_sel<=#2  4'b0010; ptr_ack<=#2  4'b0010; RR<=2; end
