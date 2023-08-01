@@ -672,10 +672,15 @@ reg [15:0] lldp_cksm_1;
 reg        lldp_sel;
 
 (*MARK_DEBUG="true"*) reg     [ 5:0]  bcs_prot_cnt_bc;
+(*MARK_DEBUG="true"*) reg             bcs_prot_cnt_gc;
 reg     [27:0]  bcs_prot_cnt;
 // reg     [15:0]  bcs_prot_quota;
-(*MARK_DEBUG="true"*) reg     [15:0]  bcs_prot_byte_cnt;
-(*MARK_DEBUG="true"*) reg             bcs_prot_block;
+(*MARK_DEBUG="true"*) reg     [15:0]  bcs_prot_byte_cnt_bc;
+(*MARK_DEBUG="true"*) reg     [15:0]  bcs_prot_byte_cnt_gc;
+(*MARK_DEBUG="true"*) reg             bcs_prot_block_bc;
+(*MARK_DEBUG="true"*) reg             bcs_prot_block_gc;
+(*MARK_DEBUG="true"*) reg             bcs_prot_drop_bc;
+(*MARK_DEBUG="true"*) reg             bcs_prot_drop_gc;
 
 assign  ram_cnt_be = speed[1]?ram_nibble_be:{1'b0,ram_nibble_be[12:1]};
 assign  data_fifo_wr_dv = data_fifo_wr_reg & (ram_nibble_be[0] | speed[1]); 
@@ -748,12 +753,12 @@ always @(posedge rx_clk  or negedge rstn_mac)
             // if(mac_conf_reg[0] && ram_cnt_be<66) ptr_fifo_din[14]<=#DELAY 1;
             // else if(!mac_conf_reg[0] && ram_cnt_be<65) ptr_fifo_din[14]<=#DELAY 1;
             if(ram_cnt_be<65) ptr_fifo_din[14]<=#DELAY 1;
-            else if (bcs_prot_block && bcs_prot_cnt_bc == 'h6 && lldp_state[0]) ptr_fifo_din[14]<=#DELAY 1;
+            else if (bcs_prot_drop_bc || bcs_prot_drop_gc) ptr_fifo_din[14]<=#DELAY 1;
             else ptr_fifo_din[14]<=#DELAY 0;
             // if(mac_conf_reg[0] && ram_cnt_be>1520) ptr_fifo_din[15]<=#DELAY 1;
             // else if(!mac_conf_reg[0] && ram_cnt_be>1519) ptr_fifo_din[15]<=#DELAY 1;
             if(ram_cnt_be>MTU+20) ptr_fifo_din[15]<=#DELAY 1;
-            else if (bcs_prot_block && bcs_prot_cnt_bc == 'h6 && lldp_state[0]) ptr_fifo_din[15]<=#DELAY 1;
+            else if (bcs_prot_drop_bc || bcs_prot_drop_gc) ptr_fifo_din[15]<=#DELAY 1;
             else ptr_fifo_din[15]<=#DELAY 0;
             if(crc_result==CRC_RESULT_VALUE) ptr_fifo_din[13]<=#DELAY 1'b0;
             else ptr_fifo_din[13]<=#DELAY 1'b1;
@@ -776,11 +781,16 @@ always @(posedge rx_clk  or negedge rstn_mac)
 
 always @(posedge rx_clk or negedge rstn_mac) begin
     if (!rstn_mac) begin
-        bcs_prot_cnt        <=  'b0;
-        bcs_prot_cnt_bc     <=  'b0;
-        // bcs_prot_quota      <=  BCS_PROT_QUOTA;
-        bcs_prot_byte_cnt   <=  'b0;
-        bcs_prot_block      <=  'b0;
+        bcs_prot_cnt            <=  'b0;
+        bcs_prot_cnt_bc         <=  'b0;
+        bcs_prot_cnt_gc         <=  'b0;
+        // bcs_prot_quota          <=  BCS_PROT_QUOTA;
+        bcs_prot_byte_cnt_bc    <=  'b0;
+        bcs_prot_byte_cnt_gc    <=  'b0;
+        bcs_prot_block_bc       <=  'b0;
+        bcs_prot_block_gc       <=  'b0;
+        bcs_prot_drop_bc        <=  'b0;
+        bcs_prot_drop_gc        <=  'b0;
     end
     else begin
         if (bcs_prot_cnt == BCS_PROT_TIMER - 1) begin
@@ -794,30 +804,53 @@ always @(posedge rx_clk or negedge rstn_mac) begin
                 if (ram_cnt_be > 1 && ram_cnt_be < 8) begin
                     bcs_prot_cnt_bc <=  (data_ram_dout == 8'hFF) ? bcs_prot_cnt_bc + 1'b1 : bcs_prot_cnt_bc;
                 end
+                if (ram_cnt_be == 2) begin
+                    bcs_prot_cnt_gc <=  data_ram_dout[0];
+                end
             end
             else begin
                 if (!ram_nibble_be[0] && ram_cnt_be > 0 && ram_cnt_be < 7) begin
                     bcs_prot_cnt_bc <=  (data_ram_dout == 8'hFF) ? bcs_prot_cnt_bc + 1'b1 : bcs_prot_cnt_bc;
                 end
+                if (!ram_nibble_be[0] && ram_cnt_be == 1) begin
+                    bcs_prot_cnt_gc <=  data_ram_dout[0];
+                end
             end
         end
         else begin
             bcs_prot_cnt_bc <=  'b0;
+            bcs_prot_cnt_gc <=  'b0;
         end
         // if (bcs_prot_cnt == BCS_PROT_TIMER - 1) begin
         //     bcs_prot_quota      <=  BCS_PROT_QUOTA;
         // end
         if (bcs_prot_cnt == BCS_PROT_TIMER - 1) begin
-            bcs_prot_byte_cnt   <=  'b0;
+            bcs_prot_byte_cnt_bc    <=  'b0;
         end
         else if (ptr_fifo_wr && ~|(ptr_fifo_din[15:13]) && bcs_prot_cnt_bc == 'h6 && lldp_state[0]) begin
-            bcs_prot_byte_cnt   <=  bcs_prot_byte_cnt + ptr_fifo_din[11:0];
+            bcs_prot_byte_cnt_bc   <=  bcs_prot_byte_cnt_bc + ptr_fifo_din[11:0];
         end
         if (bcs_prot_cnt == BCS_PROT_TIMER - 1) begin
-            bcs_prot_block      <=  'b0;
+            bcs_prot_byte_cnt_gc    <=  'b0;
         end
-        else if (mac_conf_reg[1] && bcs_prot_byte_cnt >= BCS_PROT_QUOTA) begin
-            bcs_prot_block      <=  'b1;
+        else if (ptr_fifo_wr && ~|(ptr_fifo_din[15:13]) && bcs_prot_cnt_bc != 'h6 && bcs_prot_cnt_gc && lldp_state[0]) begin
+            bcs_prot_byte_cnt_gc   <=  bcs_prot_byte_cnt_gc + ptr_fifo_din[11:0];
+        end
+        if (bcs_prot_cnt == BCS_PROT_TIMER - 1) begin
+            bcs_prot_block_bc   <=  'b0;
+        end
+        else if (mac_conf_reg[1] && bcs_prot_byte_cnt_bc >= BCS_PROT_QUOTA) begin
+            bcs_prot_block_bc   <=  'b1;
+        end
+        if (bcs_prot_cnt == BCS_PROT_TIMER - 1) begin
+            bcs_prot_block_gc   <=  'b0;
+        end
+        else if (mac_conf_reg[2] && bcs_prot_byte_cnt_gc >= BCS_PROT_QUOTA) begin
+            bcs_prot_block_gc   <=  'b1;
+        end
+        if (be_state == 3) begin
+            bcs_prot_drop_bc    <=  bcs_prot_block_bc && bcs_prot_cnt_bc == 'h6 && lldp_state[0];
+            bcs_prot_drop_gc    <=  bcs_prot_block_gc && bcs_prot_cnt_bc != 'h6 && bcs_prot_cnt_gc && lldp_state[0];
         end
     end
 end
