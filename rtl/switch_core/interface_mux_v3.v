@@ -34,11 +34,11 @@ module interface_mux_v3 (
     output          ptr_sfifo_empty
 );
 
-    reg     [ 6:0]  ifmux_state, ifmux_state_next;
+    reg     [ 5:0]  ifmux_state, ifmux_state_next;
 
     reg             bp;
     reg             error;
-    reg             tailtag;
+    // reg             tailtag;
     reg     [12:0]  cnt;
     reg     [ 1:0]  cnt_1;
     reg     [12:0]  cnt_tgt;
@@ -84,11 +84,8 @@ module interface_mux_v3 (
             02: ifmux_state_next    =   4;
             04: ifmux_state_next    =   8;
             08: ifmux_state_next    =   16;
-            16: ifmux_state_next    =   (cnt == cnt_tgt && tailtag)  ? 32 :
-                                        (cnt == cnt_tgt && !tailtag) ? 64 :
-                                        16;
-            32: ifmux_state_next    =   64;
-            64: ifmux_state_next    =   (cnt_1 == 2'b11) ? 1 : 64;
+            16: ifmux_state_next    =   (cnt == cnt_tgt) ? 32 : 16;
+            32: ifmux_state_next    =   (cnt_1 == 2'b11) ? 1 : 32;
             default: ifmux_state_next = ifmux_state;
         endcase
     end
@@ -141,7 +138,7 @@ module interface_mux_v3 (
                 cnt     <=  'h1;
             end
             // if (ifmux_state == 32) begin
-            if (ifmux_state[6]) begin
+            if (ifmux_state[5]) begin
                 cnt_1   <=  cnt_1 + 1'b1;
             end
             else begin
@@ -154,7 +151,7 @@ module interface_mux_v3 (
             end
             // else if (ifmux_state_next == 1) begin
             // else if (ifmux_state_next[0]) begin
-            else if (ifmux_state[6] && cnt_1 == 2'b11) begin
+            else if (ifmux_state[5] && cnt_1 == 2'b11) begin
                 rx_data_fifo_rd <=  'b0;
             end
             // rx ptr read
@@ -172,14 +169,14 @@ module interface_mux_v3 (
                 sfifo_en        <=  'b1;
             end
             // else if (ifmux_state_next == 32) begin
-            else if (ifmux_state[5] || ifmux_state[6]) begin
+            else if (ifmux_state[5]) begin
                 sfifo_en        <=  'b0;
             end 
             // other ctrl signal
             // if (ifmux_state == 4) begin
             if (ifmux_state[2]) begin
                 cnt_tgt         <=  {1'b0, rx_ptr_fifo_dout[11:0]};
-                tailtag         <=  rx_ptr_fifo_dout[12];
+                // tailtag         <=  rx_ptr_fifo_dout[12];
                 error           <=  rx_ptr_fifo_dout[15] || rx_ptr_fifo_dout[14] || rx_ptr_fifo_dout[13];
             end
             // if (ifmux_state != 1) begin

@@ -744,8 +744,9 @@ always @(posedge rx_clk  or negedge rstn_mac)
         end
         4:begin
             // ptr_fifo_din[12:0]<=#DELAY ram_cnt_be-1;
-            if(mac_conf_reg[0]) ptr_fifo_din[11:0]<=#DELAY ram_cnt_be-6;
-            else ptr_fifo_din[11:0]<=#DELAY ram_cnt_be-5;
+            ptr_fifo_din[11:0]<=#DELAY ram_cnt_be-5;
+            // if(mac_conf_reg[0]) ptr_fifo_din[11:0]<=#DELAY ram_cnt_be-6;
+            // else ptr_fifo_din[11:0]<=#DELAY ram_cnt_be-5;
             // if((ram_cnt_be<65) | (ram_cnt_be>1519)) ptr_fifo_din[14]<=#DELAY 1;
             // else ptr_fifo_din[14]<=#DELAY 0;
             // if(crc_result==CRC_RESULT_VALUE) ptr_fifo_din[15]<=#DELAY 1'b0;
@@ -1763,9 +1764,9 @@ always @(posedge rx_clk  or negedge rstn_mac)
         end
         4:begin
             // tteptr_fifo_din[12:0]<=#DELAY ram_cnt_tte-1;
-            // tteptr_fifo_din[12:0]<=#DELAY ram_cnt_tte-5;
-            if(mac_conf_reg[0]) tteptr_fifo_din[11:0]<=#DELAY ram_cnt_tte-6;
-            else tteptr_fifo_din[11:0]<=#DELAY ram_cnt_tte-5;
+            tteptr_fifo_din[12:0]<=#DELAY ram_cnt_tte-5;
+            // if(mac_conf_reg[0]) tteptr_fifo_din[11:0]<=#DELAY ram_cnt_tte-6;
+            // else tteptr_fifo_din[11:0]<=#DELAY ram_cnt_tte-5;
             // if((ram_cnt_tte<65) | (ram_cnt_tte>1519)) tteptr_fifo_din[14]<=#DELAY 1;
             // else tteptr_fifo_din[14]<=#DELAY 0;
             // if(crc_result==CRC_RESULT_VALUE) tteptr_fifo_din[15]<=#DELAY 1'b0;
