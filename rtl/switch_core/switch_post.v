@@ -2,14 +2,14 @@
 module switch_post (
     input clk,
     input rstn,
+    input         interface_clk,
 
-    (*MARK_DEBUG="true"*) input              o_cell_data_fifo_wr,
+    input              o_cell_data_fifo_wr,
     input      [127:0] o_cell_data_fifo_din,
     input              o_cell_data_first,
     input              o_cell_data_last,
     output reg         o_cell_data_fifo_bp,
 
-    input         interface_clk,
     input         ptr_fifo_rd,
     output [15:0] ptr_fifo_dout,
     output        ptr_fifo_empty,
@@ -194,7 +194,12 @@ module switch_post (
                     if (frame_len_with_pad > 1) begin
                         frame_len_with_pad <= #2 frame_len_with_pad - 1;
                         mstate <= #2 17;
-                    end else mstate <= #2 18;
+                    end 
+                    else begin
+                        ptr_fifo_din <= #2{frame_port_src, frame_len_1[11:0]};
+                        ptr_fifo_wr <= #2 1;
+                        mstate <= #2 18;
+                    end
                 end
                 17: begin
                     data_fifo_din <= #2 o_cell_data_fifo_dout[7:0];
@@ -203,9 +208,7 @@ module switch_post (
                 18: begin
                     data_fifo_din <= #2 o_cell_data_fifo_dout[7:0];
                     // ptr_fifo_din <= #2{4'b0, frame_len_1[11:0]};
-                    ptr_fifo_din <= #2{frame_port_src, frame_len_1[11:0]};
-                    ptr_fifo_wr <= #2 1;
-                    mstate <= #2 0;
+                    mstate <= #2 19;
                 end
                 19: begin
                     // o_cell_data_fifo_rd <= #2 1;
@@ -217,9 +220,9 @@ module switch_post (
     // assign data_fifo_wr = byte_dv && (byte_cnt[11:6] !== frame_len[11:6] || byte_cnt[5:0] < frame_len[5:0]);
     assign data_fifo_wr = byte_dv;
 
-    (*MARK_DEBUG="true"*) wire dbg_data_empty;
-    (*MARK_DEBUG="true"*) wire dbg_data_of;
-    (*MARK_DEBUG="true"*) wire dbg_data_uf;
+    wire dbg_data_empty;
+    wire dbg_data_of;
+    wire dbg_data_uf;
 
     afifo_reg_w8_d4k u_data_fifo (
     // afifo_reg_w8_d16k u_data_fifo (

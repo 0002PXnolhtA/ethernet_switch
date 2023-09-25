@@ -619,37 +619,37 @@ module mac_t_gmii_tte_v5(
             end
             else if (ptp_state == PTP_TX_STATE_FUP2) begin
                 if (tx_cnt_front == 31) begin
-                    tx_buf_cf       <=  {tx_buf_cf[39:0], tx_buf_cf[47:40]};
+                    tx_buf_cf       <=  {tx_buf_cf[7:0], tx_buf_cf[47:8]};
                     ptp_delay_sync  <=  {ptp_delay_sync[7:0], ptp_delay_sync[31:8]};
                     ptp_cf          <=  {ptp_cf_add, ptp_cf[47:8]};
                     ptp_carry_reg   <=  ptp_carry;
                 end
                 if (tx_cnt_front == 32) begin
-                    tx_buf_cf       <=  {tx_buf_cf[39:0], tx_buf_cf[47:40]};
+                    tx_buf_cf       <=  {tx_buf_cf[7:0], tx_buf_cf[47:8]};
                     ptp_delay_sync  <=  {ptp_delay_sync[7:0], ptp_delay_sync[31:8]};
                     ptp_cf          <=  {ptp_cf_add, ptp_cf[47:8]};
                     ptp_carry_reg   <=  ptp_carry;
                 end
                 if (tx_cnt_front == 33) begin
-                    tx_buf_cf       <=  {tx_buf_cf[39:0], tx_buf_cf[47:40]};
+                    tx_buf_cf       <=  {tx_buf_cf[7:0], tx_buf_cf[47:8]};
                     ptp_delay_sync  <=  {ptp_delay_sync[7:0], ptp_delay_sync[31:8]};
                     ptp_cf          <=  {ptp_cf_add, ptp_cf[47:8]};
                     ptp_carry_reg   <=  ptp_carry;
                 end
                 if (tx_cnt_front == 34) begin
-                    tx_buf_cf       <=  {tx_buf_cf[39:0], tx_buf_cf[47:40]};
+                    tx_buf_cf       <=  {tx_buf_cf[7:0], tx_buf_cf[47:8]};
                     ptp_delay_sync  <=  {ptp_delay_sync[7:0], ptp_delay_sync[31:8]};
                     ptp_cf          <=  {ptp_cf_add, ptp_cf[47:8]};
                     ptp_carry_reg   <=  ptp_carry;
                 end
                 if (tx_cnt_front == 35) begin
-                    tx_buf_cf       <=  {tx_buf_cf[39:0], tx_buf_cf[47:40]};
+                    tx_buf_cf       <=  {tx_buf_cf[7:0], tx_buf_cf[47:8]};
                     // ptp_delay_sync  <=  {ptp_delay_sync[7:0], ptp_delay_sync[31:8]};
                     ptp_cf          <=  {ptp_cf_add_1, ptp_cf[47:8]};
                     ptp_carry_reg   <=  ptp_carry_1;
                 end
                 if (tx_cnt_front == 36) begin
-                    tx_buf_cf       <=  {tx_buf_cf[39:0], tx_buf_cf[47:40]};
+                    tx_buf_cf       <=  {tx_buf_cf[7:0], tx_buf_cf[47:8]};
                     // ptp_delay_sync  <=  {ptp_delay_sync[7:0], ptp_delay_sync[31:8]};
                     ptp_cf          <=  {ptp_cf_add_1, ptp_cf[47:8]};
                     ptp_carry_reg   <=  ptp_carry_1;
@@ -657,12 +657,13 @@ module mac_t_gmii_tte_v5(
             end
             else if (ptp_state == PTP_TX_STATE_FUP3) begin
                 ptp_cf  <=  ptp_cf << 8;
+                ptp_carry_reg   <=  'b0;
             end
         end
     end
 
-    assign  {ptp_carry, ptp_cf_add}         =   tx_buf_cf[47:40] + ptp_delay_sync[7:0] + ptp_carry_reg;
-    assign  {ptp_carry_1, ptp_cf_add_1}     =   tx_buf_cf[47:40] + ptp_carry_reg;
+    assign  {ptp_carry, ptp_cf_add}         =   tx_buf_cf[7:0] + ptp_delay_sync[7:0] + ptp_carry_reg;
+    assign  {ptp_carry_1, ptp_cf_add_1}     =   tx_buf_cf[7:0] + ptp_carry_reg;
     // assign  counter_delay   =   {16'b0, ptp_delay_req, 16'b0};
     assign  delay_fifo_din  =   ptp_delay_req[31:0];
 

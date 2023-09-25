@@ -162,7 +162,7 @@ always@(posedge clk or negedge rstn)
 			i_cell_first<=#2 0;
 			// if(!i_cell_ptr_fifo_empty & !qc_ptr_full & !FQ_empty & FQ_act)begin
 			// bug fixed version, check for FQ depth before continue
-			if(!i_cell_ptr_fifo_empty && !qc_ptr_full && FQ_alloc && FQ_act)begin
+			if(!i_cell_ptr_fifo_empty && !(qc_ptr_full & i_cell_ptr_fifo_dout[11:8]) && FQ_alloc && FQ_act)begin
 				i_cell_data_fifo_rd<=#2  1;
 				i_cell_ptr_fifo_rd<=#2  1;
 				qc_portmap<=#2 i_cell_ptr_fifo_dout[11:8];

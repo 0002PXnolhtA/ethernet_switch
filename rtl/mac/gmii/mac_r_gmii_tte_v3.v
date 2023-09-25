@@ -359,11 +359,13 @@ always @(posedge rx_clk  or negedge rstn_mac)
             else st_state<=#DELAY 0;
             end
         2:begin
+            if(dv_eof | (!rx_dv_reg0))begin
+                st_state<=#DELAY 3;
+                end
             if(dv_eof | (!rx_dv_reg0) | byte_bp)begin
                 fv<=#DELAY 0;
                 load_byte<=#DELAY byte_cnt;
                 load_req<=#DELAY 1;
-                st_state<=#DELAY 3;
                 end
             end
         3:begin
@@ -758,7 +760,7 @@ always @(posedge rx_clk  or negedge rstn_mac)
             else ptr_fifo_din[14]<=#DELAY 0;
             // if(mac_conf_reg[0] && ram_cnt_be>1520) ptr_fifo_din[15]<=#DELAY 1;
             // else if(!mac_conf_reg[0] && ram_cnt_be>1519) ptr_fifo_din[15]<=#DELAY 1;
-            if(ram_cnt_be>MTU+20) ptr_fifo_din[15]<=#DELAY 1;
+            if(ram_cnt_be>MTU+19) ptr_fifo_din[15]<=#DELAY 1;
             else if (bcs_prot_drop_bc || bcs_prot_drop_gc) ptr_fifo_din[15]<=#DELAY 1;
             else ptr_fifo_din[15]<=#DELAY 0;
             if(crc_result==CRC_RESULT_VALUE) ptr_fifo_din[13]<=#DELAY 1'b0;
@@ -1764,7 +1766,7 @@ always @(posedge rx_clk  or negedge rstn_mac)
         end
         4:begin
             // tteptr_fifo_din[12:0]<=#DELAY ram_cnt_tte-1;
-            tteptr_fifo_din[12:0]<=#DELAY ram_cnt_tte-5;
+            tteptr_fifo_din[11:0]<=#DELAY ram_cnt_tte-5;
             // if(mac_conf_reg[0]) tteptr_fifo_din[11:0]<=#DELAY ram_cnt_tte-6;
             // else tteptr_fifo_din[11:0]<=#DELAY ram_cnt_tte-5;
             // if((ram_cnt_tte<65) | (ram_cnt_tte>1519)) tteptr_fifo_din[14]<=#DELAY 1;
@@ -1777,7 +1779,7 @@ always @(posedge rx_clk  or negedge rstn_mac)
             else tteptr_fifo_din[14]<=#DELAY 0;
             // if(mac_conf_reg[0] && ram_cnt_tte>1520) tteptr_fifo_din[15]<=#DELAY 1;
             // else if(!mac_conf_reg[0] && ram_cnt_tte>1519) tteptr_fifo_din[15]<=#DELAY 1;
-            if(ram_cnt_tte>MTU+20) tteptr_fifo_din[15]<=#DELAY 1;
+            if(ram_cnt_tte>MTU+19) tteptr_fifo_din[15]<=#DELAY 1;
             else tteptr_fifo_din[15]<=#DELAY 0;
             if(crc_result==CRC_RESULT_VALUE) tteptr_fifo_din[13]<=#DELAY 1'b0;
             else tteptr_fifo_din[13]<=#DELAY 1'b1;
