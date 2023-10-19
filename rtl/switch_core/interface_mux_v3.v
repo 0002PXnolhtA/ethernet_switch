@@ -173,9 +173,17 @@ module interface_mux_v3 (
                 sfifo_en        <=  'b0;
             end 
             // other ctrl signal
+            // if (ifmux_state == 1) begin
+            if (ifmux_state[0]) begin
+                cnt_tgt         <=  'b0;
+            end
+            // else if (ifmux_state == 4) begin
+            else if (ifmux_state[2]) begin
+                cnt_tgt         <=  {1'b0, rx_ptr_fifo_dout[11:0]};
+            end
             // if (ifmux_state == 4) begin
             if (ifmux_state[2]) begin
-                cnt_tgt         <=  {1'b0, rx_ptr_fifo_dout[11:0]};
+                // cnt_tgt         <=  {1'b0, rx_ptr_fifo_dout[11:0]};
                 // tailtag         <=  rx_ptr_fifo_dout[12];
                 error           <=  rx_ptr_fifo_dout[15] || rx_ptr_fifo_dout[14] || rx_ptr_fifo_dout[13];
             end

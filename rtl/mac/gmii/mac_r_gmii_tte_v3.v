@@ -70,6 +70,10 @@ parameter   TTE_VALUE=8'h92;
 parameter   MTU=1500;
 parameter   PTP_VALUE_HIGH=8'h88;
 parameter   PTP_VALUE_LOWER=8'hf7;
+parameter   UDP_V4_VALUE_HIGH=8'h08;
+parameter   UDP_V4_VALUE_LOW=8'h00;
+parameter   UDP_V6_VALUE_HIGH=8'h86;
+parameter   UDP_V6_VALUE_LOW=8'hdd;
 parameter   LLDP_VALUE_HI       =   8'h08;
 parameter   LLDP_VALUE_LO       =   8'h01;
 parameter   LLDP_PARAM_PORT     =   16'h1;
@@ -177,7 +181,7 @@ assign rx_conf_resp = conf_state[2];
 //generte ptp message    
 //============================================ 
 
-reg     [ 5:0]  ptp_state;
+reg     [ 7:0]  ptp_state;
 reg     [ 3:0]  ptp_delay_state, ptp_delay_state_next;
 reg     [19:0]  ptp_timeout_us; // 5us per cycle
 reg     [15:0]  ptp_timeout;
@@ -188,7 +192,7 @@ always @(*) begin
         01: ptp_delay_state_next = !delay_fifo_empty ? 2 : 1;
         02: ptp_delay_state_next = 4;
         04: ptp_delay_state_next = 8;
-        08: ptp_delay_state_next = (ptp_state == 23) || (ptp_state == 32) || (ptp_timeout == 400) ? 1 : 8;
+        08: ptp_delay_state_next = (ptp_state == 23) || (ptp_state == 32) || (ptp_state == 44) || (ptp_timeout == 400) ? 1 : 8;
         default: ptp_delay_state_next = ptp_delay_state;
     endcase
 end
@@ -359,16 +363,25 @@ always @(posedge rx_clk  or negedge rstn_mac)
             else st_state<=#DELAY 0;
             end
         2:begin
-            if(dv_eof | (!rx_dv_reg0))begin
+            if (dv_eof || !rx_dv_reg0) begin
+                st_state<=#DELAY 4;
+            end
+            else if (byte_bp) begin
                 st_state<=#DELAY 3;
-                end
-            if(dv_eof | (!rx_dv_reg0) | byte_bp)begin
+            end
+            if(dv_eof || !rx_dv_reg0 || byte_bp)begin
                 fv<=#DELAY 0;
                 load_byte<=#DELAY byte_cnt;
                 load_req<=#DELAY 1;
                 end
             end
         3:begin
+            load_req<=#DELAY 0;
+            if(dv_eof || !rx_dv_reg0)begin
+                st_state<=#DELAY 0;
+            end
+        end
+        4:begin
             load_req<=#DELAY 0;
             st_state<=#DELAY 0;
         end
@@ -419,7 +432,7 @@ always @(*) begin
                                     (byte_cnt == 31 && byte_dv) ? 128 : 32;
         64: st_type_state_next  =   (dv_eof || !rx_dv_reg0)     ? 01  :
                                     (byte_cnt == 31 && byte_dv) ? 128 : 64;
-        128: st_type_state_next =   (st_state == 3)  ? 01 : 128;
+        128: st_type_state_next =   (dv_eof || !rx_dv_reg0)     ? 01 : 128;
         default: st_type_state_next = st_type_state;
     endcase
 end
@@ -489,102 +502,133 @@ always @(posedge rx_clk  or negedge rstn_mac)
     end
     else begin
         case(ptp_reg_state)
-        0: begin
-            if(dv_sof)begin
-                if(!sfd) begin
-                    ptp_reg_state<=#DELAY 1;
-                    end
-                else begin
-                    ptp_reg_state<=#DELAY 2;
-                    end
-                end
-            end
-        1:begin
-            if(rx_dv_reg0)begin
-                if(sfd) begin
-                    ptp_reg_state<=#DELAY 2;
+            0: begin
+                if(dv_sof)begin
+                    if(!sfd) begin
+                        ptp_reg_state<=#DELAY 1;
+                        end
+                    else begin
+                        ptp_reg_state<=#DELAY 2;
+                        end
                     end
                 end
-            else ptp_reg_state<=#DELAY 0;
-            end
-        2:begin
-            if(byte_cnt==12 & byte_dv)begin
-                if(data_ram_din==PTP_VALUE_HIGH)begin
-                    ptp_reg_state<=#DELAY 3;
+            1:begin
+                if(rx_dv_reg0)begin
+                    if(sfd) begin
+                        ptp_reg_state<=#DELAY 2;
+                        end
+                    end
+                else ptp_reg_state<=#DELAY 0;
                 end
-                else begin
-                    ptp_reg_state<=#DELAY 0;
-                end
-            end
-        end
-        3:begin
-            if(byte_cnt==13 & byte_dv)begin
-                if(data_ram_din==PTP_VALUE_LOWER)begin
-                    ptp_reg_state<=#DELAY 4;
-                end
-                else begin
-                    ptp_reg_state<=#DELAY 0;
-                end
-            end
-        end
-        4:begin
-            if(byte_cnt==14 & byte_dv)begin
-                if(data_ram_din[3:0]==4'b1001)begin
-                    ptp_reg_state<=#DELAY 5;
-                end
-                else begin
-                    ptp_reg_state<=#DELAY 0;
+            2:begin
+                if(byte_cnt==12 & byte_dv)begin
+                    if(data_ram_din==PTP_VALUE_HIGH)begin
+                        ptp_reg_state<=#DELAY 3;
+                    end
+                    else if (data_ram_din==UDP_V4_VALUE_HIGH) begin
+                        ptp_reg_state<=#DELAY 8;
+                    end
+                    else begin
+                        ptp_reg_state<=#DELAY 0;
+                    end
                 end
             end
-        end
-        5:begin
-            if(byte_cnt==22 & byte_dv)begin
-                ptp_messeage[63:56]<=#DELAY data_ram_din;
-                ptp_reg_state<=#DELAY 6;
+            3:begin
+                if(byte_cnt==13 & byte_dv)begin
+                    if(data_ram_din==PTP_VALUE_LOWER)begin
+                        ptp_reg_state<=#DELAY 4;
+                    end
+                    else begin
+                        ptp_reg_state<=#DELAY 0;
+                    end
+                end
             end
-        end
-        6:begin
-            if(byte_cnt==23 & byte_dv)begin
-                ptp_messeage[55:48]<=#DELAY data_ram_din;
-                ptp_reg_state<=#DELAY 7;
+            4:begin
+                if(byte_cnt==14 & byte_dv)begin
+                    if(data_ram_din[3:0]==4'b1001)begin
+                        ptp_reg_state<=#DELAY 5;
+                    end
+                    else begin
+                        ptp_reg_state<=#DELAY 0;
+                    end
+                end
             end
-        end
-        7:begin
-            if(byte_cnt==24 & byte_dv)begin
-                ptp_messeage[47:40]<=#DELAY data_ram_din;
-                ptp_reg_state<=#DELAY 8;
+            5:begin
+                if(byte_cnt==21 & byte_dv)begin
+                    ptp_reg_state<=#DELAY 6;
+                end
             end
-        end
-        8:begin
-            if(byte_cnt==25 & byte_dv)begin
-                ptp_messeage[39:32]<=#DELAY data_ram_din;
-                ptp_reg_state<=#DELAY 9;
+            6:begin
+                if(byte_dv)begin
+                    if (byte_cnt==29) ptp_reg_state<=#DELAY 0;
+                    ptp_messeage<=#DELAY {ptp_messeage, data_ram_din};
+                end
             end
-        end
-        9:begin
-            if(byte_cnt==26 & byte_dv)begin
-                ptp_messeage[31:24]<=#DELAY data_ram_din;
-                ptp_reg_state<=#DELAY 10;
+            8:begin
+                if(byte_cnt==13 & byte_dv)begin
+                    if(data_ram_din==UDP_V4_VALUE_LOW)begin
+                        ptp_reg_state<=#DELAY 9;
+                    end
+                    else begin
+                        ptp_reg_state<=#DELAY 0;
+                    end
+                end
             end
-        end
-        10:begin
-            if(byte_cnt==27 & byte_dv)begin
-                ptp_messeage[23:16]<=#DELAY data_ram_din;
-                ptp_reg_state<=#DELAY 11;
+            9:begin
+                if(byte_cnt==23 & byte_dv)begin
+                    if(data_ram_din==8'h11)begin
+                        ptp_reg_state<=#DELAY 10;
+                    end
+                    else begin
+                        ptp_reg_state<=#DELAY 0;
+                    end
+                end
             end
-        end
-        11:begin
-            if(byte_cnt==28 & byte_dv)begin
-                ptp_messeage[15:8]<=#DELAY data_ram_din;
-                ptp_reg_state<=#DELAY 12;
+            10:begin
+                if(byte_cnt==36 & byte_dv)begin
+                    if(data_ram_din==8'h01)begin
+                        ptp_reg_state<=#DELAY 11;
+                    end
+                    else begin
+                        ptp_reg_state<=#DELAY 0;
+                    end
+                end
             end
-        end
-        12:begin
-            if(byte_cnt==29 & byte_dv)begin
-                ptp_messeage[7:0]<=#DELAY data_ram_din;
+            11:begin
+                if(byte_cnt==37 & byte_dv)begin
+                    if(data_ram_din==8'h40)begin
+                        ptp_reg_state<=#DELAY 12;
+                    end
+                    else begin
+                        ptp_reg_state<=#DELAY 0;
+                    end
+                end
+            end
+            12:begin
+                if(byte_cnt==42 & byte_dv)begin
+                    if(data_ram_din[3:0]==4'b1001)begin
+                        ptp_reg_state<=#DELAY 13;
+                    end
+                    else begin
+                        ptp_reg_state<=#DELAY 0;
+                    end
+                end
+            end
+            13:begin
+                if(byte_cnt==49 & byte_dv)begin
+                    ptp_reg_state<=#DELAY 14;
+                end
+            end
+            14:begin
+                if(byte_dv)begin
+                    if (byte_cnt==57) ptp_reg_state<=#DELAY 0;
+                    ptp_messeage<=#DELAY {ptp_messeage, data_ram_din};
+                end
+            end
+            default: begin
                 ptp_reg_state<=#DELAY 0;
+                ptp_messeage<=#DELAY 0;
             end
-        end
         endcase
     end
 
@@ -653,14 +697,15 @@ reg [ 3:0]  tailtag_port;
 //============================================  
 reg     [12:0]  ram_nibble_be;
 wire    [12:0]  ram_cnt_be;
+reg     [11:0]  load_byte_be;
 reg     [7:0]	data_fifo_din_reg;
 reg             data_fifo_wr;
 reg             data_fifo_wr_reg;
 (*MARK_DEBUG="true"*) wire            data_fifo_wr_dv;
-wire    [11:0]  data_fifo_depth;
-(*MARK_DEBUG="true"*)  reg     [19:0]  ptr_fifo_din;
-(*MARK_DEBUG="true"*)  reg             ptr_fifo_wr;
-wire            ptr_fifo_full;
+(*MARK_DEBUG="true"*) wire    [11:0]  data_fifo_depth;
+(*MARK_DEBUG="true"*) reg     [19:0]  ptr_fifo_din;
+(*MARK_DEBUG="true"*) reg             ptr_fifo_wr;
+(*MARK_DEBUG="true"*) wire            ptr_fifo_full;
 
 reg [ 4:0] lldp_state, lldp_state_next;
 reg [ 7:0] lldp_data;
@@ -673,16 +718,16 @@ reg [23:0] lldp_cksm;
 reg [15:0] lldp_cksm_1;
 reg        lldp_sel;
 
-(*MARK_DEBUG="true"*) reg     [ 5:0]  bcs_prot_cnt_bc;
-(*MARK_DEBUG="true"*) reg             bcs_prot_cnt_gc;
+reg     [ 5:0]  bcs_prot_cnt_bc;
+reg             bcs_prot_cnt_gc;
 reg     [27:0]  bcs_prot_cnt;
 // reg     [15:0]  bcs_prot_quota;
-(*MARK_DEBUG="true"*) reg     [15:0]  bcs_prot_byte_cnt_bc;
-(*MARK_DEBUG="true"*) reg     [15:0]  bcs_prot_byte_cnt_gc;
-(*MARK_DEBUG="true"*) reg             bcs_prot_block_bc;
-(*MARK_DEBUG="true"*) reg             bcs_prot_block_gc;
-(*MARK_DEBUG="true"*) reg             bcs_prot_drop_bc;
-(*MARK_DEBUG="true"*) reg             bcs_prot_drop_gc;
+reg     [15:0]  bcs_prot_byte_cnt_bc;
+reg     [15:0]  bcs_prot_byte_cnt_gc;
+reg             bcs_prot_block_bc;
+reg             bcs_prot_block_gc;
+reg             bcs_prot_drop_bc;
+reg             bcs_prot_drop_gc;
 
 assign  ram_cnt_be = speed[1]?ram_nibble_be:{1'b0,ram_nibble_be[12:1]};
 assign  data_fifo_wr_dv = data_fifo_wr_reg & (ram_nibble_be[0] | speed[1]); 
@@ -706,7 +751,7 @@ always @(posedge rx_clk or negedge rstn_mac)
         end
 
 wire    bp;
-assign  bp=(data_fifo_depth>2560) || ptr_fifo_full;
+assign  bp=(data_fifo_depth>2240) || ptr_fifo_full;
 
 reg     [2:0]   be_state;
 
@@ -724,17 +769,21 @@ always @(posedge rx_clk  or negedge rstn_mac)
             if(load_be & !bp)begin
                 ram_nibble_be<=#DELAY ram_nibble_be+1;
                 be_state<=#DELAY 1;
-                end
             end
+            else begin
+                ram_nibble_be<=#DELAY 0;
+            end
+        end
         1:begin
             data_fifo_wr<=#DELAY 1;
             ram_nibble_be<=#DELAY ram_nibble_be+1;
             if(load_req)begin
                 be_state<=#DELAY 2;
+                load_byte_be<=#DELAY load_byte;
                 end
         end
         2:begin
-            if(ram_cnt_be<=load_byte)
+            if(ram_cnt_be<=load_byte_be)
                 ram_nibble_be<=#DELAY ram_nibble_be+1;
             else begin
                 data_fifo_wr<=#DELAY 0;
@@ -868,6 +917,7 @@ end
     reg     [63:0]  ptp_message_pad;
 
     reg     [31:0]  ptp_time_now;   // timestamp of now
+    reg     [31:0]  ptp_time_now_1;
     reg     [31:0]  ptp_time_now_sys;   // timestamp of now, system side
     reg             ptp_time_req;       // lockup counter output for cross clk domain
     reg     [ 1:0]  ptp_time_req_mac;
@@ -918,10 +968,16 @@ always @(posedge rx_clk  or negedge rstn_mac)
                 if(data_ram_dout==PTP_VALUE_HIGH)begin
                     ptp_state<=#DELAY 1;
                 end
+                if(data_ram_dout==UDP_V4_VALUE_HIGH)begin
+                    ptp_state<=#DELAY 35;
+                end
             end
             else if(speed[1] && ram_cnt_be==14)begin //gmii
                 if(data_ram_dout==PTP_VALUE_HIGH)begin
                     ptp_state<=#DELAY 8;
+                end
+                if(data_ram_dout==UDP_V4_VALUE_HIGH)begin
+                    ptp_state<=#DELAY 35;
                 end
             end
         end
@@ -1171,6 +1227,141 @@ always @(posedge rx_clk  or negedge rstn_mac)
             if(ram_cnt_be==24 & data_fifo_wr_dv)begin
                 ptp_time_req<=#DELAY 1;
                 ptp_state<=#DELAY 10;
+            end
+        end
+        35:begin
+            if ((!speed[1] && ram_cnt_be==14) || (speed[1] && ram_cnt_be==15))begin
+                if(data_ram_dout==UDP_V4_VALUE_LOW)begin
+                    ptp_state<=#DELAY 36;
+                end
+                else begin
+                    ptp_state<=#DELAY 0;
+                end
+            end
+        end
+        36:begin
+            if ((!speed[1] && ram_cnt_be==24) || (speed[1] && ram_cnt_be==25)) begin
+                if(data_ram_dout==8'h11)begin
+                    ptp_state<=#DELAY 37;
+                end
+                else begin
+                    ptp_state<=#DELAY 0;
+                end
+            end
+        end
+        37:begin
+            if ((!speed[1] && ram_cnt_be==37) || (speed[1] && ram_cnt_be==38)) begin
+                if(data_ram_dout==8'h01)begin
+                    ptp_state<=#DELAY 38;
+                end
+                else begin
+                    ptp_state<=#DELAY 0;
+                end
+            end
+        end
+        38:begin
+            if ((!speed[1] && ram_cnt_be==38) || (speed[1] && ram_cnt_be==39)) begin
+                if(data_ram_dout==8'h3F)begin // event message
+                    ptp_state<=#DELAY 39;
+                end
+                else if(data_ram_dout==8'h40)begin // general message
+                    ptp_state<=#DELAY 42;
+                end
+                else begin
+                    ptp_state<=#DELAY 0;
+                end
+            end
+        end
+        39:begin
+            if ((!speed[1] && ram_cnt_be==43) || (speed[1] && ram_cnt_be==44)) begin
+                if(data_ram_dout[3:1]==0)begin // sync & delay_req
+                    // ptp_state<=#DELAY 10;
+                    ptp_state<=#DELAY 40;
+                end
+                else begin
+                    ptp_state<=#DELAY 0;
+                end
+            end
+        end
+        40:begin
+            if (!speed[1]) begin
+                if (ram_cnt_be == 50 & !data_fifo_wr_dv) begin
+                    ptp_time_req<=#DELAY 1;
+                end
+                else begin
+                    ptp_time_req<=#DELAY 0;
+                end
+                if (ram_cnt_be == 58 & !data_fifo_wr_dv) begin
+                    ptp_time_now_1 <= ptp_time_now;
+                    ptp_state<=#DELAY 41;
+                end
+            end
+            else begin
+                if (ram_cnt_be == 51) begin
+                    ptp_time_req<=#DELAY 1;
+                end
+                else begin
+                    ptp_time_req<=#DELAY 0;
+                end
+                if (ram_cnt_be == 59) begin
+                    ptp_time_now_1 <= ptp_time_now;
+                    ptp_state<=#DELAY 41;
+                end
+            end
+        end
+        41:begin
+            if (speed[1] || !data_fifo_wr_dv) begin
+                ptp_data<=#DELAY ptp_time_now_1[31:24];
+                ptp_time_now_1<=#DELAY ptp_time_now_1 << 8;
+                if (ram_cnt_be == 63 && !speed[1]) begin
+                    ptp_sel<=#DELAY 0;
+                    ptp_state<=#DELAY 0;
+                end
+                else if (ram_cnt_be == 64 && speed[1]) begin
+                    ptp_sel<=#DELAY 0;
+                    ptp_state<=#DELAY 0;
+                end
+                else begin
+                    ptp_sel<=#DELAY 1;
+                end
+            end
+        end
+        42:begin
+            if ((!speed[1] && ram_cnt_be==43) || (speed[1] && ram_cnt_be==44)) begin
+                if(data_ram_dout[3:0]==4'b1001)begin // delay_resp
+                    ptp_message_pad<=#DELAY ptp_messeage+counter_ns_delay;
+                    ptp_state<=#DELAY 43;
+                end
+                else begin
+                    ptp_state<=#DELAY 0;
+                end
+            end
+        end
+        43:begin
+            if (speed[1] || !data_fifo_wr_dv) begin
+                if (ram_cnt_be == 50 && !speed[1]) begin
+                    ptp_state<=#DELAY 44;
+                end
+                else if (ram_cnt_be == 51 && speed[1]) begin
+                    ptp_state<=#DELAY 44;
+                end
+            end
+        end
+        44:begin
+            if (speed[1] || !data_fifo_wr_dv) begin
+                ptp_data<=#DELAY ptp_message_pad[63:56];
+                ptp_message_pad<=#DELAY ptp_message_pad << 8;
+                if (ram_cnt_be == 59 && !speed[1]) begin
+                    ptp_sel<=#DELAY 0;
+                    ptp_state<=#DELAY 0;
+                end
+                else if (ram_cnt_be == 60 && speed[1]) begin
+                    ptp_sel<=#DELAY 0;
+                    ptp_state<=#DELAY 0;
+                end
+                else begin
+                    ptp_sel<=#DELAY 1;
+                end
             end
         end
         endcase
@@ -1695,6 +1886,7 @@ end
 //============================================  
 reg     [12:0]  ram_nibble_tte;
 wire    [12:0]  ram_cnt_tte;
+reg     [11:0]  load_byte_tte;
 reg     [7:0]	tte_fifo_din;
 reg             tte_fifo_wr;
 reg             tte_fifo_wr_reg;
@@ -1726,7 +1918,7 @@ always @(posedge rx_clk or negedge rstn_mac)
         end
 
 wire    tte_bp;
-assign  tte_bp=(tte_fifo_depth>2560) || tteptr_fifo_full;
+assign  tte_bp=(tte_fifo_depth>2240) || tteptr_fifo_full;
 
 reg     [2:0]   tte_state;
 always @(posedge rx_clk  or negedge rstn_mac)
@@ -1750,11 +1942,12 @@ always @(posedge rx_clk  or negedge rstn_mac)
             tte_fifo_wr<=#DELAY 1;
             ram_nibble_tte<=#DELAY ram_nibble_tte+1;
             if(load_req)begin
+                load_byte_tte<=#DELAY load_byte;
                 tte_state<=#DELAY 2;
                 end
         end
         2:begin
-            if(ram_cnt_tte<=load_byte)
+            if(ram_cnt_tte<=load_byte_tte)
                 ram_nibble_tte<=#DELAY ram_nibble_tte+1;
             else begin
                 tte_fifo_wr<=#DELAY 0;
@@ -1834,8 +2027,37 @@ end
 //fifo used. 
 //============================================  
 
+(*MARK_DEBUG = "true"*) wire        dbg_data_full;
 (*MARK_DEBUG = "true"*) wire        dbg_data_empty;
 (*MARK_DEBUG = "true"*) wire [11:0] dbg_data_fifo_depth;
+
+(*MARK_DEBUG = "true"*) reg  [11:0] dbg_data_fifo_wr_len;
+(*MARK_DEBUG = "true"*) reg         dbg_data_fifo_len_mismatch;
+
+always @(posedge rx_clk or negedge rstn_mac) begin
+    if (!rstn_mac) begin
+        dbg_data_fifo_wr_len        <=  12'hFFC;
+        dbg_data_fifo_len_mismatch  <=  'b0;
+    end
+    else begin
+        if (ptr_fifo_wr) begin
+            dbg_data_fifo_wr_len    <=  12'hFFC;
+        end
+        else if (data_fifo_wr_dv && !dbg_data_full) begin
+            dbg_data_fifo_wr_len    <=  dbg_data_fifo_wr_len + 1'b1;
+        end
+        if (ptr_fifo_wr) begin
+            if (ptr_fifo_din[11:0] !== dbg_data_fifo_wr_len) begin
+                dbg_data_fifo_len_mismatch  <=  'b1;
+            end
+            // else begin
+                // dbg_data_fifo_len_mismatch  <=  'b0;
+            // end
+        end
+    end
+end
+
+
 
 afifo_reg_w8_d4k u_data_fifo (
   .rst(!rstn_sys),                      // input rst
@@ -1845,7 +2067,7 @@ afifo_reg_w8_d4k u_data_fifo (
   .wr_en(data_fifo_wr_dv),              // input wr_en
   .rd_en(data_fifo_rd),                 // input rd_en
   .dout(data_fifo_dout),                // output [7 : 0]       
-  .full(), 
+  .full(dbg_data_full), 
   .empty(dbg_data_empty), 
   .rd_data_count(dbg_data_fifo_depth),  // output [11 : 0] rd_data_count
   .wr_data_count(data_fifo_depth) 	    // output [11 : 0] wr_data_count

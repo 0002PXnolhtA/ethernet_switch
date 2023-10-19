@@ -33,7 +33,7 @@ module mac_t_gmii_tte_v5(
 
     // normal dataflow
     output          data_fifo_rd,
-    input   [ 7:0]  data_fifo_din,  // registered output, better timing
+    (*MARK_DEBUG = "true"*) input   [ 7:0]  data_fifo_din,  // registered output, better timing
     input           data_fifo_empty,
     output reg      ptr_fifo_rd, 
     input   [15:0]  ptr_fifo_din,
@@ -65,6 +65,8 @@ module mac_t_gmii_tte_v5(
 
     localparam  PTP_VALUE_HI        =   8'h88;  // high byte of ptp ethertype
     localparam  PTP_VALUE_LO        =   8'hf7;  // low byte of ptp ethertype
+    localparam  UDP_V4_VALUE_HI     =   8'h08;  // high byte of udp ethertype
+    localparam  UDP_V4_VALUE_LO     =   8'h00;  // low byte of udp ethertype
     localparam  PTP_TYPE_SYNC       =   4'h0;   // MsgType Sync
     localparam  PTP_TYPE_DYRQ       =   4'h1;   // MsgType Delay_Req
     localparam  PTP_TYPE_FLUP       =   4'h8;   // MsgType Follow_Up
@@ -88,6 +90,26 @@ module mac_t_gmii_tte_v5(
     localparam  PTP_TX_STATE_FUP1   =   32; // follow_up state 1, wait for correctionField
     localparam  PTP_TX_STATE_FUP2   =   64; // follow_up state 2, update correctionField
     localparam  PTP_TX_STATE_FUP3   =   128;// follow_up state 3, replace data with new correctionField
+    // localparam  PTP_TX_STATE_IDU2   =   256;// idle state 2 for ptp-over-udp
+    // localparam  PTP_TX_STATE_IDU3   =   512;// idle state 3 for ptp-over-udp
+
+    localparam  PTP_TX_DET_STATE_IDLE               =   1;      // idle state, wait for packet
+    localparam  PTP_TX_DET_STATE_ETH_TYPE           =   2;      // ethernet state, check for 1588 ethertype
+    localparam  PTP_TX_DET_STATE_ETH_DET            =   4;      // ethernet-based ptp packet detected
+    localparam  PTP_TX_DET_STATE_UDPV4_ETHERTYPE    =   8;      // udpv4 state, check for ipv4/udp ethertype
+    localparam  PTP_TX_DET_STATE_UDPV4_IP_1         =   16;     // udpv4 state, check for ip type
+    localparam  PTP_TX_DET_STATE_UDPV4_IP_2         =   32;     // udpv4 state, check for dest ip addr
+    localparam  PTP_TX_DET_STATE_UDPV4_UDP_1        =   64;     // udpv4 state, check for dest udp port
+    localparam  PTP_TX_DET_STATE_UDPV4_UDP_2        =   128;    // udpv4 state, clear udp hdr cksm
+    localparam  PTP_TX_DET_STATE_UDPV4_DET          =   256;    // ipv4/udp based ptp packet detected
+
+    localparam  PTP_TX_MOD_STATE_IDLE               =   1;      // idle state, wait for ptp detection
+    localparam  PTP_TX_MOD_STATE_TYPE               =   2;      // type state, check for ptp packet type
+    localparam  PTP_TX_MOD_STATE_SYNC               =   4;      // sync state, extract ingress timestamp
+    localparam  PTP_TX_MOD_STATE_DYRQ               =   8;      // delay_req state, update slave-master latency
+    localparam  PTP_TX_MOD_STATE_FUP1               =   16;     // follow_up state 1, wait for correctionField
+    localparam  PTP_TX_MOD_STATE_FUP2               =   32;     // follow_up state 2, compose correctionField
+    localparam  PTP_TX_MOD_STATE_FUP3               =   64;     // follow_up state 3, update correctionField
 
     localparam  LLDP_VALUE_HI       =   8'h08;
     localparam  LLDP_VALUE_LO       =   8'h01;
@@ -255,23 +277,26 @@ module mac_t_gmii_tte_v5(
     reg     [47:0]  tx_buf_cf;      // high 48 bit of correctionField
 
     reg             tx_arb_dir;
-    reg     [11:0]  tx_cnt_front;   // frontend count
+    (*MARK_DEBUG = "true"*) reg     [11:0]  tx_cnt_front;   // frontend count
     reg     [ 4:0]  tx_cnt_front_1;
     reg     [11:0]  tx_cnt_back;    // backend count
     reg     [11:0]  tx_cnt_back_1;
     reg     [ 3:0]  tx_port_src;
     reg     [11:0]  tx_byte_cnt;    // total byte count
     reg     [ 1:0]  tx_byte_valid;
-    reg             tx_read_req;    // generate read signal for 4-bit MII\
+    reg             tx_read_req;    // generate read signal for 4-bit MII
 
     reg             data_fifo_en;
     reg             tdata_fifo_en;
     assign          data_fifo_rd    =   data_fifo_en && (speed[1] || tx_read_req);
     assign          tdata_fifo_rd   =   tdata_fifo_en && (speed[1] || tx_read_req);
 
+    reg     [ 7:0]  ptp_cnt;
     reg     [47:0]  ptp_delay_sync; // ingress-egress delay of sync
     reg     [47:0]  ptp_delay_req;  // ingress-egress delay of delay_req
     reg     [47:0]  ptp_cf;         // updated correctionField
+    reg             ptp_udp_inject;
+    reg     [ 7:0]  ptp_udp_inject_buf;
     wire            ptp_carry;
     wire            ptp_carry_1;
     reg             ptp_carry_reg;
@@ -292,9 +317,11 @@ module mac_t_gmii_tte_v5(
     wire    [31:0]  crc_result;
     wire    [ 7:0]  crc_dout;
 
-    wire    [ 7:0]  tx_data_in;
+    (*MARK_DEBUG = "true"*) wire    [ 7:0]  tx_data_in;
     wire    [15:0]  tx_ptr_in;
-    assign          tx_data_in  =   tx_arb_dir ? tdata_fifo_din : data_fifo_din;
+    assign          tx_data_in  =   ptp_udp_inject ? ptp_udp_inject_buf :
+                                    tx_arb_dir ? tdata_fifo_din :
+                                    data_fifo_din;
     assign          tx_ptr_in   =   tx_arb_dir ? tptr_fifo_din  : ptr_fifo_din;
 
     always @(*) begin
@@ -307,7 +334,7 @@ module mac_t_gmii_tte_v5(
             // 'd16: tx_state_next = (tx_cnt_back == 12'hFF8) ? 'd32 : 'd16;
             // 'd16: tx_state_next = (tx_cnt_back_1 == 12'hFFA) && (speed[1] || tx_read_req)? 'd32 : 'd16;
             // 'd32: tx_state_next = (tx_cnt_front_1 == 1) && (speed[1] || tx_read_req)? 'd1 : 'd32; 
-            'd16: tx_state_next = (tx_cnt_front_1 == 'h18) ? 'd1 : 'd16;
+            'd16: tx_state_next = (tx_cnt_front_1 == 'h17) ? 'd1 : 'd16;
             default: tx_state_next = tx_state;
         endcase
     end
@@ -345,7 +372,7 @@ module mac_t_gmii_tte_v5(
                 end
             end
             else begin
-                tx_cnt_front_1  <=  speed[1] ? 'h3 : 'b0;
+                tx_cnt_front_1  <=  speed[1] ? 'h2 : 'b0;
             end
             tx_byte_valid   <=  {tx_byte_valid[0], (data_fifo_rd || tdata_fifo_rd)};
         end
@@ -407,64 +434,152 @@ module mac_t_gmii_tte_v5(
         end
     end
 
-    reg     [15:0]  ptp_state, ptp_state_next;
-    
+    (*MARK_DEBUG = "true"*) reg     [15:0]  ptp_det_state, ptp_det_state_next;
+    (*MARK_DEBUG = "true"*) reg     [15:0]  ptp_mod_state, ptp_mod_state_next;
+
     always @(*) begin
-        case(ptp_state)
-            PTP_TX_STATE_IDL1: begin
-                if (tx_cnt_front == 15 && tx_data_in == PTP_VALUE_HI)
-                    ptp_state_next  =   PTP_TX_STATE_IDL2;
+        case(ptp_det_state)
+            PTP_TX_DET_STATE_IDLE: begin
+                if (!tx_arb_dir && tx_cnt_front == 15 && data_fifo_din == PTP_VALUE_HI)
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_ETH_TYPE;
+                else if (!tx_arb_dir && tx_cnt_front == 15 && data_fifo_din == UDP_V4_VALUE_HI)
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_ETHERTYPE;
                 else
-                    ptp_state_next  =   PTP_TX_STATE_IDL1;
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_IDLE;
             end
-            PTP_TX_STATE_IDL2: begin
-                if (tx_cnt_front == 16 && tx_data_in == PTP_VALUE_LO)
-                    ptp_state_next  =   PTP_TX_STATE_TYPE;
-                else
-                    ptp_state_next  =   PTP_TX_STATE_IDL1;
+            PTP_TX_DET_STATE_ETH_TYPE: begin
+                if (tx_cnt_front == 16) begin
+                    if (data_fifo_din == PTP_VALUE_LO)
+                        ptp_det_state_next  =   PTP_TX_DET_STATE_ETH_DET;
+                    else
+                        ptp_det_state_next  =   PTP_TX_DET_STATE_IDLE;
+                end
+                else begin
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_ETH_TYPE;
+                end
             end
-            PTP_TX_STATE_TYPE: begin
-                if (tx_cnt_front == 17 && tx_data_in[3:0] == PTP_TYPE_SYNC)
-                    ptp_state_next  =   PTP_TX_STATE_SYNC;
-                else if (tx_cnt_front == 17 && tx_data_in[3:0] == PTP_TYPE_DYRQ)
-                    ptp_state_next  =   PTP_TX_STATE_DYRQ;
-                else if (tx_cnt_front == 17 && tx_data_in[3:0] == PTP_TYPE_FLUP)
-                    ptp_state_next  =   PTP_TX_STATE_FUP1;
+            PTP_TX_DET_STATE_ETH_DET: begin
+                if (!tx_state_next[0])
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_ETH_DET;
                 else
-                    ptp_state_next  =   PTP_TX_STATE_IDL1;
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_IDLE;
             end
-            PTP_TX_STATE_SYNC: begin
-                if (tx_cnt_front == 48)
-                    ptp_state_next  =   PTP_TX_STATE_IDL1;
-                else
-                    ptp_state_next  =   PTP_TX_STATE_SYNC;
+            PTP_TX_DET_STATE_UDPV4_ETHERTYPE: begin
+                if (tx_cnt_front == 16) begin
+                    if (data_fifo_din == UDP_V4_VALUE_LO)
+                        ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_IP_1;
+                    else
+                        ptp_det_state_next  =   PTP_TX_DET_STATE_IDLE;
+                end
+                else begin
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_ETHERTYPE;
+                end
             end
-            PTP_TX_STATE_DYRQ: begin
-                if (tx_cnt_front == 48)
-                    ptp_state_next  =   PTP_TX_STATE_IDL1;
-                else
-                    ptp_state_next  =   PTP_TX_STATE_DYRQ;              
+            PTP_TX_DET_STATE_UDPV4_IP_1: begin
+                if (tx_cnt_front == 26) begin
+                    if (data_fifo_din == 8'h11)
+                        ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_IP_2;
+                    else
+                        ptp_det_state_next  =   PTP_TX_DET_STATE_IDLE;
+                end
+                else begin
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_IP_1;
+                end
             end
-            PTP_TX_STATE_FUP1: begin
-                if (tx_cnt_front == 30)
-                    ptp_state_next  =   PTP_TX_STATE_FUP2;
-                else
-                    ptp_state_next  =   PTP_TX_STATE_FUP1;   
+            PTP_TX_DET_STATE_UDPV4_IP_2: begin
+                if (tx_cnt_front == 33) begin
+                    if (data_fifo_din == 8'hE0)
+                        ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_UDP_1;
+                    else
+                        ptp_det_state_next  =   PTP_TX_DET_STATE_IDLE;
+                end
+                else begin
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_IP_2;
+                end
             end
-            PTP_TX_STATE_FUP2: begin
-                if (tx_cnt_front == 36)
-                    ptp_state_next  =   PTP_TX_STATE_FUP3;
-                else
-                    ptp_state_next  =   PTP_TX_STATE_FUP2;
+            PTP_TX_DET_STATE_UDPV4_UDP_1: begin
+                if (tx_cnt_front == 40) begin
+                    if (data_fifo_din == 8'h3F)
+                        ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_UDP_2;  // event message (sync & delay_req)
+                    else if (data_fifo_din == 8'h40)
+                        ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_UDP_2;  // general message (follow_up & delay_resp)
+                    else
+                        ptp_det_state_next  =   PTP_TX_DET_STATE_IDLE;
+                end
+                else begin
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_UDP_1;
+                end
             end
-            PTP_TX_STATE_FUP3: begin
-                if (tx_cnt_front == 42)
-                    ptp_state_next  =   PTP_TX_STATE_IDL1;
+            PTP_TX_DET_STATE_UDPV4_UDP_2: begin
+                if (tx_cnt_front == 44)
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_DET;
                 else
-                    ptp_state_next  =   PTP_TX_STATE_FUP3;       
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_UDP_2;
+            end
+            PTP_TX_DET_STATE_UDPV4_DET: begin
+                if (!tx_state_next[0])
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_UDPV4_DET;
+                else
+                    ptp_det_state_next  =   PTP_TX_DET_STATE_IDLE;
             end
             default: begin
-                ptp_state_next  =   ptp_state; 
+                ptp_det_state_next  =   PTP_TX_DET_STATE_IDLE; 
+            end
+        endcase
+    end  
+    
+    always @(*) begin
+        case(ptp_mod_state)
+            PTP_TX_MOD_STATE_IDLE: begin
+                if (tx_cnt_front == 16 && ptp_det_state_next == PTP_TX_DET_STATE_ETH_DET)
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_TYPE;
+                else if (tx_cnt_front == 44 && ptp_det_state_next == PTP_TX_DET_STATE_UDPV4_DET)
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_TYPE;
+                else
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_IDLE;
+            end
+            PTP_TX_MOD_STATE_TYPE: begin
+                if (data_fifo_din[3:0] == PTP_TYPE_SYNC)
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_SYNC;
+                else if (data_fifo_din[3:0] == PTP_TYPE_DYRQ)
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_DYRQ;
+                else if (data_fifo_din[3:0] == PTP_TYPE_FLUP)
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_FUP1;
+                else
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_IDLE;
+            end
+            PTP_TX_MOD_STATE_SYNC: begin
+                if (ptp_cnt == 23)
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_IDLE;
+                else
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_SYNC;
+            end
+            PTP_TX_MOD_STATE_DYRQ: begin
+                if (ptp_cnt == 23)
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_IDLE;
+                else
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_DYRQ;
+            end
+            PTP_TX_MOD_STATE_FUP1: begin
+                if (ptp_cnt == 13)
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_FUP2;
+                else
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_FUP1;
+            end
+            PTP_TX_MOD_STATE_FUP2: begin
+                if (ptp_cnt == 19)
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_FUP3;
+                else
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_FUP2;
+            end
+            PTP_TX_MOD_STATE_FUP3: begin
+                if (ptp_cnt == 25)
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_IDLE;
+                else
+                    ptp_mod_state_next  =   PTP_TX_MOD_STATE_FUP3;
+            end
+            default: begin
+                ptp_mod_state_next  =   PTP_TX_DET_STATE_IDLE; 
             end
         endcase
     end
@@ -472,11 +587,13 @@ module mac_t_gmii_tte_v5(
     // always @(posedge tx_master_clk or negedge rstn_mac) begin
     always @(posedge interface_clk or negedge rstn_mac) begin
         if (!rstn_mac) begin
-            ptp_state   <=  PTP_TX_STATE_IDL1;
+            ptp_det_state   <=  PTP_TX_DET_STATE_IDLE;
+            ptp_mod_state   <=  PTP_TX_MOD_STATE_IDLE;
         end
         else begin
             if (speed[1] || !tx_read_req) begin
-                ptp_state   <=  ptp_state_next;
+                ptp_det_state   <=  ptp_det_state_next;
+                ptp_mod_state   <=  ptp_mod_state_next;
             end
         end
     end
@@ -513,11 +630,49 @@ module mac_t_gmii_tte_v5(
             delay_fifo_wr   <=  'b0;
         end
         else begin
-            if (ptp_state == PTP_TX_STATE_DYRQ && tx_cnt_front == 40 && (speed[1] || tx_read_req)) begin
+            if (ptp_mod_state == PTP_TX_MOD_STATE_DYRQ && ptp_cnt == 23 && (speed[1] || tx_read_req)) begin
                 delay_fifo_wr   <=  !delay_fifo_full;
             end
             else begin
                 delay_fifo_wr   <=  'b0;
+            end
+        end
+    end
+
+    // always @(posedge tx_master_clk or negedge rstn_mac) begin
+    always @(posedge interface_clk or negedge rstn_mac) begin
+        if (!rstn_mac) begin
+            ptp_cnt     <=  'b0;
+        end
+        else if (speed[1] || !tx_read_req) begin
+            if (ptp_det_state == PTP_TX_DET_STATE_ETH_DET) begin
+                ptp_cnt     <=  ptp_cnt + 1'b1;
+            end
+            else if (ptp_det_state == PTP_TX_DET_STATE_UDPV4_DET) begin
+                ptp_cnt     <=  ptp_cnt + 1'b1;
+            end
+            else begin
+                ptp_cnt     <=  'b0;
+            end
+        end
+    end
+
+    // always @(posedge tx_master_clk or negedge rstn_mac) begin
+    always @(posedge interface_clk or negedge rstn_mac) begin
+        if (!rstn_mac) begin
+            ptp_udp_inject      <=  'b0;
+            ptp_udp_inject_buf  <=  'b0;    
+        end
+        else if (speed[1] || !tx_read_req) begin
+            if (ptp_det_state == PTP_TX_DET_STATE_UDPV4_UDP_2) begin
+                if (tx_cnt_front == 42) begin
+                    ptp_udp_inject      <=  'b1;
+                    ptp_udp_inject_buf  <=  'b0;
+                end
+                else if (tx_cnt_front == 44) begin
+                    ptp_udp_inject      <=  'b0;
+                    ptp_udp_inject_buf  <=  'b0;
+                end
             end
         end
     end
@@ -534,128 +689,110 @@ module mac_t_gmii_tte_v5(
             ptp_time_req        <=  'b0;    // toggle signal
         end
         else if (speed[1] || !tx_read_req) begin
-            if (ptp_state == PTP_TX_STATE_SYNC) begin
-                if (tx_cnt_front == 30) begin
+            if (ptp_mod_state == PTP_TX_MOD_STATE_SYNC) begin
+                if (ptp_cnt == 13) begin
                     ptp_time_req    <=  'b1;
                 end
-                else if (tx_cnt_front == 31) begin
+                else if (ptp_cnt == 14) begin
                     ptp_time_req    <=  'b0;
                 end
-                else if (tx_cnt_front == 33) begin
+                else if (ptp_cnt == 16) begin
                     // ptp_time_req    <=  'b0;
                     ptp_time_ts     <=  {ptp_time_ts[23:0], tx_data_in};
                 end
-                else if (tx_cnt_front == 34) begin
+                else if (ptp_cnt == 17) begin
                     ptp_time_ts     <=  {ptp_time_ts[23:0], tx_data_in};
                 end
-                else if (tx_cnt_front == 35) begin
+                else if (ptp_cnt == 18) begin
                     ptp_time_ts     <=  {ptp_time_ts[23:0], tx_data_in};
                 end
-                else if (tx_cnt_front == 36) begin
+                else if (ptp_cnt == 19) begin
                     ptp_time_ts     <=  {ptp_time_ts[23:0], tx_data_in};
                 end
-                else if (tx_cnt_front == 38) begin
+                else if (ptp_cnt == 21) begin
                     {ptp_carry_reg_1, ptp_delay_sync[15:0]} <=  (ptp_time_now[15:0] - ptp_time_ts[15:0]);
                 end
-                else if (tx_cnt_front == 39) begin
+                else if (ptp_cnt == 22) begin
                     ptp_delay_sync[31:16]   <=  (ptp_time_now[31:16] - ptp_time_ts[31:16] - ptp_carry_reg_1);
                 end
                 // else if (tx_cnt_front == 40) begin
                 //     ptp_delay_sync[31]      <=  (ptp_time_now[31]^ptp_time_ts[31]) ? ~ptp_delay_sync[31] : ptp_delay_sync[31];
                 // end
             end
-            else if (ptp_state == PTP_TX_STATE_DYRQ) begin
-                if (tx_cnt_front == 30) begin
+            else if (ptp_mod_state == PTP_TX_MOD_STATE_DYRQ) begin
+                if (ptp_cnt == 13) begin
                     ptp_time_req    <=  'b1;
                 end
-                else if (tx_cnt_front == 31) begin
+                else if (ptp_cnt == 14) begin
                     ptp_time_req    <=  'b0;
                 end
-                else if (tx_cnt_front == 33) begin
+                else if (ptp_cnt == 16) begin
                     // ptp_time_req    <=  'b0;
                     ptp_time_ts     <=  {ptp_time_ts[23:0], tx_data_in};
                 end
-                else if (tx_cnt_front == 34) begin
+                else if (ptp_cnt == 17) begin
                     ptp_time_ts     <=  {ptp_time_ts[23:0], tx_data_in};
                 end
-                else if (tx_cnt_front == 35) begin
+                else if (ptp_cnt == 18) begin
                     ptp_time_ts     <=  {ptp_time_ts[23:0], tx_data_in};
                 end
-                else if (tx_cnt_front == 36) begin
+                else if (ptp_cnt == 19) begin
                     ptp_time_ts     <=  {ptp_time_ts[23:0], tx_data_in};
                 end
-                else if (tx_cnt_front == 38) begin
+                else if (ptp_cnt == 21) begin
                     {ptp_carry_reg_1, ptp_delay_req[15:0]}  <=  (ptp_time_now[15:0] - ptp_time_ts[15:0]);
                 end
-                else if (tx_cnt_front == 39) begin
+                else if (ptp_cnt == 22) begin
                     ptp_delay_req[31:16]    <=  (ptp_time_now[31:16] - ptp_time_ts[31:16] - ptp_carry_reg_1);
                 end
                 // else if (tx_cnt_front == 40) begin
                 //     ptp_delay_req[31]       <=  (ptp_time_now[31]^ptp_time_ts[31]) ? ~ptp_delay_req[31] : ptp_delay_req[31];
                 // end
             end
-            else if (ptp_state == PTP_TX_STATE_FUP1) begin
-                if (tx_cnt_front == 25) begin
+            else if (ptp_mod_state == PTP_TX_MOD_STATE_FUP1) begin
+                if (ptp_cnt >= 8) begin
                     tx_buf_cf       <=  {tx_buf_cf, tx_data_in};
                 end
-                if (tx_cnt_front == 26) begin
-                    tx_buf_cf       <=  {tx_buf_cf, tx_data_in};
-                end
-                if (tx_cnt_front == 27) begin
-                    tx_buf_cf       <=  {tx_buf_cf, tx_data_in};
-                end
-                if (tx_cnt_front == 28) begin
-                    tx_buf_cf       <=  {tx_buf_cf, tx_data_in};
-                end
-                if (tx_cnt_front == 29) begin
-                    tx_buf_cf       <=  {tx_buf_cf, tx_data_in};
-                end
-                if (tx_cnt_front == 30) begin
-                    tx_buf_cf       <=  {tx_buf_cf, tx_data_in};
-                end
-                // if (tx_cnt_front == 30) begin
-                //     tx_buf_cf   <=  speed[1] ? {tx_data_in, tx_buffer[95:56]} : tx_buffer[95:48];
-                // end
             end
-            else if (ptp_state == PTP_TX_STATE_FUP2) begin
-                if (tx_cnt_front == 31) begin
+            else if (ptp_mod_state == PTP_TX_MOD_STATE_FUP2) begin
+                if (ptp_cnt == 14) begin
                     tx_buf_cf       <=  {tx_buf_cf[7:0], tx_buf_cf[47:8]};
                     ptp_delay_sync  <=  {ptp_delay_sync[7:0], ptp_delay_sync[31:8]};
                     ptp_cf          <=  {ptp_cf_add, ptp_cf[47:8]};
                     ptp_carry_reg   <=  ptp_carry;
                 end
-                if (tx_cnt_front == 32) begin
+                if (ptp_cnt == 15) begin
                     tx_buf_cf       <=  {tx_buf_cf[7:0], tx_buf_cf[47:8]};
                     ptp_delay_sync  <=  {ptp_delay_sync[7:0], ptp_delay_sync[31:8]};
                     ptp_cf          <=  {ptp_cf_add, ptp_cf[47:8]};
                     ptp_carry_reg   <=  ptp_carry;
                 end
-                if (tx_cnt_front == 33) begin
+                if (ptp_cnt == 16) begin
                     tx_buf_cf       <=  {tx_buf_cf[7:0], tx_buf_cf[47:8]};
                     ptp_delay_sync  <=  {ptp_delay_sync[7:0], ptp_delay_sync[31:8]};
                     ptp_cf          <=  {ptp_cf_add, ptp_cf[47:8]};
                     ptp_carry_reg   <=  ptp_carry;
                 end
-                if (tx_cnt_front == 34) begin
+                if (ptp_cnt == 17) begin
                     tx_buf_cf       <=  {tx_buf_cf[7:0], tx_buf_cf[47:8]};
                     ptp_delay_sync  <=  {ptp_delay_sync[7:0], ptp_delay_sync[31:8]};
                     ptp_cf          <=  {ptp_cf_add, ptp_cf[47:8]};
                     ptp_carry_reg   <=  ptp_carry;
                 end
-                if (tx_cnt_front == 35) begin
+                if (ptp_cnt == 18) begin
                     tx_buf_cf       <=  {tx_buf_cf[7:0], tx_buf_cf[47:8]};
                     // ptp_delay_sync  <=  {ptp_delay_sync[7:0], ptp_delay_sync[31:8]};
                     ptp_cf          <=  {ptp_cf_add_1, ptp_cf[47:8]};
                     ptp_carry_reg   <=  ptp_carry_1;
                 end
-                if (tx_cnt_front == 36) begin
+                if (ptp_cnt == 19) begin
                     tx_buf_cf       <=  {tx_buf_cf[7:0], tx_buf_cf[47:8]};
                     // ptp_delay_sync  <=  {ptp_delay_sync[7:0], ptp_delay_sync[31:8]};
                     ptp_cf          <=  {ptp_cf_add_1, ptp_cf[47:8]};
                     ptp_carry_reg   <=  ptp_carry_1;
                 end
             end
-            else if (ptp_state == PTP_TX_STATE_FUP3) begin
+            else if (ptp_mod_state == PTP_TX_MOD_STATE_FUP3) begin
                 ptp_cf  <=  ptp_cf << 8;
                 ptp_carry_reg   <=  'b0;
             end
@@ -808,11 +945,11 @@ module mac_t_gmii_tte_v5(
     reg             mii_dv_1;
 
     wire    [ 7:0]  mii_d_in;
-    // assign          mii_d_in    =   (mii_state == 'h08)                 ?   crc_dout        :
-    assign          mii_d_in    =   (mii_state[3])                      ?   {4'b0, tx_port_src} :
-                                    (mii_state[4])                      ?   crc_dout            :
-                                    (ptp_state == PTP_TX_STATE_FUP3)    ?   ptp_cf[47:40]       :
-                                    lldp_valid                          ?   lldp_data           :
+    // assign          mii_d_in    =   (mii_state == 'h08)                         ?   crc_dout        :
+    assign          mii_d_in    =   (mii_state[3])                              ?   {4'b0, tx_port_src} :
+                                    (mii_state[4])                              ?   crc_dout            :
+                                    (ptp_mod_state == PTP_TX_MOD_STATE_FUP3)    ?   ptp_cf[47:40]       :
+                                    lldp_valid                                  ?   lldp_data           :
                                     tx_buffer[7:0];
 
     always @(*) begin
