@@ -520,10 +520,10 @@ module mac_ctrl_v2 #(
         if (!rst_if) begin
             speed   <=  2'b11;
             link    <=  1'b0;
-            led     <=  2'b0;
+            led     <=  2'b0;   
         end
         else if (mgnt_mdio_state[4] && mdio_resp_valid) begin
-            speed   <=  mdio_resp_data[15:14];
+            speed   <=  !link ? 2'b11 : mdio_resp_data[15:14];
             link    <=  mdio_resp_data[10];
             led     <=  mdio_resp_data[15:14];
         end

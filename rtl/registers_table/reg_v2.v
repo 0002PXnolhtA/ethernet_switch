@@ -21,7 +21,21 @@
 // Distributed design for mac state registers
 //                                                                                
 //////////////////////////////////////////////////////////////////////////////////
-
+// BE Flow Table:
+// [127]        : entry valid
+// [126]        : entry static
+// [125]        : dst mac filter
+// [124:122]    : unused
+// [121:112]    : entry age cnt
+// [111: 64]    : unused
+// [ 63: 16]    : dst mac
+// [ 15:  0]    : portmap
+// TTE Flow Table:
+// [119]        : entry valid
+// [118:112]    : unused
+// [111: 64]    : src mac
+// [ 63: 16]    : dst mac
+// [ 15:  0]    : portmap
 
 module register_v2 #(
     parameter   MGNT_REG_WIDTH      =   32,
@@ -59,7 +73,8 @@ module register_v2 #(
     localparam  PORT2_ADDR      =   7'h02;
     localparam  PORT3_ADDR      =   7'h03;
     localparam  BE_SW_ADDR      =   7'h40;
-    localparam  BE_SW_FTM_ADDR  =   7'h41;
+    localparam  BE_SW_FT_ADDR   =   7'h41;
+    localparam  BE_SW_FTM_ADDR  =   7'h42;
     localparam  TTE_SW_ADDR     =   7'h50;
     localparam  SPI_LOCAL_ADDR  =   7'h7F;
 
@@ -94,7 +109,7 @@ module register_v2 #(
     localparam  SW_REV_ADDR_0   =   8'h82;
     localparam  SW_REV_ADDR_1   =   8'h83;
     parameter   SW_ID_VAL       =   16'h1234;
-    parameter   SW_FTR_VAL      =   16'h001E;
+    parameter   SW_FTR_VAL      =   16'h001F;
     
     // spi reg operation
     reg     [ 7:0]  reg_state, reg_state_next;
@@ -143,6 +158,7 @@ module register_v2 #(
                     PORT2_ADDR      : reg_state_next = 4;
                     PORT3_ADDR      : reg_state_next = 4;
                     BE_SW_ADDR      : reg_state_next = 4;
+                    BE_SW_FT_ADDR   : reg_state_next = 4;
                     BE_SW_FTM_ADDR  : reg_state_next = 4;
                     TTE_SW_ADDR     : reg_state_next = 4;
                     SPI_LOCAL_ADDR  : reg_state_next = 32;
@@ -294,8 +310,9 @@ module register_v2 #(
                     PORT2_ADDR      : begin sys_req_valid <= 'h04; sys_req_wr <= reg_dev_ptr[15]; end
                     PORT3_ADDR      : begin sys_req_valid <= 'h08; sys_req_wr <= reg_dev_ptr[15]; end
                     BE_SW_ADDR      : begin sys_req_valid <= 'h10; sys_req_wr <= reg_dev_ptr[15]; end
-                    BE_SW_FTM_ADDR  : begin sys_req_valid <= 'h20; sys_req_wr <= reg_dev_ptr[15]; end
-                    TTE_SW_ADDR     : begin sys_req_valid <= 'h40; sys_req_wr <= reg_dev_ptr[15]; end
+                    BE_SW_FT_ADDR   : begin sys_req_valid <= 'h20; sys_req_wr <= reg_dev_ptr[15]; end
+                    BE_SW_FTM_ADDR  : begin sys_req_valid <= 'h40; sys_req_wr <= reg_dev_ptr[15]; end
+                    TTE_SW_ADDR     : begin sys_req_valid <= 'h80; sys_req_wr <= reg_dev_ptr[15]; end
                     default: begin sys_req_valid <= 'b0; sys_req_wr <= 'b0; end
                 endcase
             end

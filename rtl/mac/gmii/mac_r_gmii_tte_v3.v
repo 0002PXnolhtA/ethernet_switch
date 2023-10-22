@@ -2047,7 +2047,7 @@ always @(posedge rx_clk or negedge rstn_mac) begin
             dbg_data_fifo_wr_len    <=  dbg_data_fifo_wr_len + 1'b1;
         end
         if (ptr_fifo_wr) begin
-            if (ptr_fifo_din[11:0] !== dbg_data_fifo_wr_len) begin
+            if (ptr_fifo_din[11:0] != dbg_data_fifo_wr_len) begin
                 dbg_data_fifo_len_mismatch  <=  'b1;
             end
             // else begin

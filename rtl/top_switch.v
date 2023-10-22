@@ -249,7 +249,10 @@ module top_switch (
     wire            sys_resp_data_valid_tte;
     wire            sys_req_ack_ftm;
     wire    [ 7:0]  sys_resp_data_ftm;
-    wire            sys_resp_data_valid_ftm;  
+    wire            sys_resp_data_valid_ftm;
+    wire            sys_req_ack_ft;
+    wire    [ 7:0]  sys_resp_data_ft;
+    wire            sys_resp_data_valid_ft;
 
     assign  sys_req_ack         =   sys_req_ack_p0  ||
                                     sys_req_ack_p1  ||
@@ -257,6 +260,7 @@ module top_switch (
                                     sys_req_ack_p3  ||
                                     sys_req_ack_be  ||
                                     sys_req_ack_tte ||
+                                    sys_req_ack_ft  ||
                                     sys_req_ack_ftm;
     assign  sys_resp_data_valid =   sys_resp_data_valid_p0  ||
                                     sys_resp_data_valid_p1  ||
@@ -264,6 +268,7 @@ module top_switch (
                                     sys_resp_data_valid_p3  ||
                                     sys_resp_data_valid_be  ||
                                     sys_resp_data_valid_tte ||
+                                    sys_resp_data_valid_ft  ||
                                     sys_resp_data_valid_ftm;
     assign  sys_resp_data       =   (sys_resp_data_valid_p0)  ? sys_resp_data_p0  :
                                     (sys_resp_data_valid_p1)  ? sys_resp_data_p1  :
@@ -271,6 +276,7 @@ module top_switch (
                                     (sys_resp_data_valid_p3)  ? sys_resp_data_p3  :
                                     (sys_resp_data_valid_be)  ? sys_resp_data_be  :
                                     (sys_resp_data_valid_tte) ? sys_resp_data_tte :
+                                    (sys_resp_data_valid_ft)  ? sys_resp_data_ft  :
                                     sys_resp_data_ftm;
 
     wire [31:0] counter_ns;
@@ -753,7 +759,10 @@ module top_switch (
         .fp_conf_data(fp_conf_data)
 
     );
-    hash_2_bucket u_hash (
+
+    hash_2_bucket_mgnt #(
+        .MGNT_REG_WIDTH ( 16 )
+    ) u_hash (
         .clk(clk),
         .rstn(rstn_sys),
         .se_req(se_req),
@@ -764,8 +773,16 @@ module top_switch (
         .se_result(se_result),
         .se_nak(se_nak),
         .se_mac(se_mac),
-        .aging_req(),
-        .aging_ack()
+        .clk_if                  ( clk_125                     ),
+        .rst_if                  ( rstn_sys                    ),
+        .sys_req_valid           ( sys_req_valid           [5] ),
+        .sys_req_wr              ( sys_req_wr                  ),
+        .sys_req_addr            ( sys_req_addr         [ 7:0] ),
+        .sys_req_data            ( sys_req_data         [ 7:0] ),
+        .sys_req_data_valid      ( sys_req_data_valid          ),
+        .sys_req_ack             ( sys_req_ack_ft              ),
+        .sys_resp_data           ( sys_resp_data_ft     [ 7:0] ),
+        .sys_resp_data_valid     ( sys_resp_data_valid_ft      )
     );
 
     hash_multicast #(
@@ -777,7 +794,7 @@ module top_switch (
         .rst_sys                 ( rstn_sys                    ),
         .ftm_req_valid           ( ftm_req_valid               ),
         .ftm_req_mac             ( se_mac               [15:0] ),
-        .sys_req_valid           ( sys_req_valid           [5] ),
+        .sys_req_valid           ( sys_req_valid           [6] ),
         .sys_req_wr              ( sys_req_wr                  ),
         .sys_req_addr            ( sys_req_addr         [ 7:0] ),
         .sys_req_data            ( sys_req_data         [ 7:0] ),
@@ -873,7 +890,7 @@ module top_switch (
         .fp_conf_resp            ( tte_fp_conf_resp            ),
         .swc_mgnt_valid          ( tte_swc_mgnt_valid          ),
         .swc_mgnt_data           ( tte_swc_mgnt_data    [ 3:0] ),
-        .sys_req_valid           ( sys_req_valid           [6] ),
+        .sys_req_valid           ( sys_req_valid           [7] ),
         .sys_req_wr              ( sys_req_wr                  ),
         .sys_req_addr            ( sys_req_addr         [ 7:0] ),
         .sys_req_data            ( sys_req_data         [ 7:0] ),
