@@ -416,6 +416,8 @@ module mac_ctrl_v2 #(
     end
 
     reg     [31:0]  mdio_timer;     // query link status
+    reg             mdio_timer_req;
+    reg             mdio_mgnt_req;
     reg             mdio_valid;
     reg             mdio_wr;
     reg     [ 9:0]  mdio_addr;
@@ -429,11 +431,32 @@ module mac_ctrl_v2 #(
             mdio_timer      <=  'b0;
         end
         else begin
-            if (mdio_timer == 32'd25000000) begin
+            if (mdio_timer == 32'd5000000) begin
                 mdio_timer  <=  'b0;
             end
             else begin
                 mdio_timer  <=  mdio_timer + 1'b1;
+            end
+        end
+    end
+
+    always @(posedge clk_if) begin
+        if (!rst_if) begin
+            mdio_timer_req  <=  'b0;
+            mdio_mgnt_req   <=  'b0;
+        end
+        else begin
+            if (mgnt_mdio_state[3]) begin
+                mdio_timer_req  <=  'b0;
+            end
+            else if (mdio_timer == 'b0) begin
+                mdio_timer_req  <=  'b1;
+            end
+            if (mgnt_mdio_state[1]) begin
+                mdio_mgnt_req   <=  'b0;
+            end
+            else if (mgnt_state[4] && mgnt_reg_req_addr == MGNT_MAC_MDIO_FUNC_UPD) begin
+                mdio_mgnt_req   <=  'b1;
             end
         end
     end
@@ -456,8 +479,8 @@ module mac_ctrl_v2 #(
     always @(*) begin
         case(mgnt_mdio_state)
             // Idle state
-            01: mgnt_mdio_state_next =  (mgnt_state[4] && mgnt_reg_req_addr == MGNT_MAC_MDIO_FUNC_UPD) ? 2 : 
-                                        mdio_timer == 'b0 ? 8 : 1;
+            01: mgnt_mdio_state_next =  mdio_mgnt_req ? 2 : 
+                                        mdio_timer_req ? 8 : 1;
             // Update config
             02: mgnt_mdio_state_next =  4;
             04: mgnt_mdio_state_next =  (mdio_resp_valid) ? 1 : 4;

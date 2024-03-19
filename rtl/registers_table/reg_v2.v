@@ -65,7 +65,10 @@ module register_v2 #(
     output reg              ft_update,
     input                   ft_ack,
     output      [119:0]     flow,
-    output      [11:0]      hash
+    output      [11:0]      hash,
+    // interrupt subsystem
+    input       [ 3:0]      link,
+    (*MARK_DEBUG = "true"*) output reg              int
 );
 
     localparam  PORT0_ADDR      =   7'h00;
@@ -94,6 +97,8 @@ module register_v2 #(
     localparam  TABLE_ST5_ADDR  =   7'h35;
     localparam  TABLE_ST6_ADDR  =   7'h36;
     localparam  TABLE_ST7_ADDR  =   7'h37;
+    localparam  INT_STS_ADDR    =   7'h40;
+    localparam  INT_CFG_ADDR    =   7'h41;
 
     // Feature Flag:
     // bit 15-6: reserved for future
@@ -124,6 +129,9 @@ module register_v2 #(
     reg     [ 1:0]      ft_bsy;
     reg     [127:0]     table_reg;
     reg     [11:0]      table_hash;
+    (*MARK_DEBUG = "true"*) reg     [15:0]      int_cfg;
+    (*MARK_DEBUG = "true"*) reg     [15:0]      int_sts;
+    (*MARK_DEBUG = "true"*) reg     [ 3:0]      int_link;
 
     wire    [31:0]      usr_data;
 
@@ -274,6 +282,12 @@ module register_v2 #(
                     if (reg_dev_ptr[7:3] == 5'h06) begin
                         spi_dout    <=  table_reg[16*reg_dev_ptr[2:0]+:16];
                     end
+                    if (reg_dev_ptr[7:0] == INT_STS_ADDR) begin
+                        spi_dout    <=  int_sts;
+                    end
+                    if (reg_dev_ptr[7:0] == INT_CFG_ADDR) begin
+                        spi_dout    <=  int_cfg;
+                    end
                     if (reg_dev_ptr[7:0] == SW_ID_ADDR) begin
                         spi_dout    <=  SW_ID_VAL;
                     end
@@ -283,7 +297,7 @@ module register_v2 #(
                     if (reg_dev_ptr[7:0] == SW_REV_ADDR_0) begin
                         spi_dout    <=  usr_data[15:0];
                     end
-                    if (reg_dev_ptr[7:0] == SW_REV_ADDR_1)begin
+                    if (reg_dev_ptr[7:0] == SW_REV_ADDR_1) begin
                         spi_dout    <=  usr_data[31:16];
                     end
                 end
@@ -421,10 +435,41 @@ module register_v2 #(
     assign  hash    =   table_hash;
     assign  spi_ack =   spi_wr;
 
-   USR_ACCESSE2 USR_ACCESSE2_inst (
-      .CFGCLK(),            // 1-bit output: Configuration Clock output
-      .DATA(usr_data),      // 32-bit output: Configuration Data output
-      .DATAVALID()          // 1-bit output: Active high data valid output
-   );
+    USR_ACCESSE2 USR_ACCESSE2_inst (
+       .CFGCLK(),            // 1-bit output: Configuration Clock output
+       .DATA(usr_data),      // 32-bit output: Configuration Data output
+       .DATAVALID()          // 1-bit output: Active high data valid output
+    );
+
+    always @(posedge clk or negedge rst) begin
+        if (!rst) begin
+            int         <=  'b0;
+            int_cfg     <=  'b0;
+            int_sts     <=  'b0;
+            int_link    <=  'b0;
+        end
+        else begin
+            if (int_cfg[15]) begin
+                if (int_cfg[0] && |(int_link ^ link)) begin
+                    int     <=  'b1;
+                    int_sts <=  'b1;
+                end
+                else if (reg_state[7] && spi_op == DEV_PTR_ADDR && reg_dev_ptr[14:8] == SPI_LOCAL_ADDR && reg_dev_ptr[7:0] == INT_STS_ADDR) begin
+                    int     <=  'b0;
+                    int_sts <=  'b0;
+                end
+            end
+            else begin
+                int     <=  'b0;
+                int_sts <=  'b0;
+            end
+            if (|(int_link ^ link)) begin
+                int_link    <=  link;
+            end
+            if (reg_state[5] && spi_op == DEV_PTR_ADDR && reg_dev_ptr[14:8] == SPI_LOCAL_ADDR && reg_dev_ptr[7:0] == INT_CFG_ADDR) begin
+                int_cfg     <=  reg_dev_data;
+            end
+        end
+    end
 
 endmodule

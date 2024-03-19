@@ -9,6 +9,7 @@ module top_switch (
     input        csb,
     input        sck,
     output       miso,
+    output       int,
     //mac0 interface
     input  [7:0] GMII_RXD_0,
     input        GMII_RX_DV_0,
@@ -1037,7 +1038,9 @@ module top_switch (
         .ft_update               ( hash_update             ),
         .ft_ack                  ( reg_rst                 ),
         .flow                    ( flow            [119:0] ),
-        .hash                    ( hash            [11:0]  )
+        .hash                    ( hash            [11:0]  ),
+        .link                    ( link                    ),
+        .int                     ( int                     )
     );
 
     spi_process spi_process_inst (

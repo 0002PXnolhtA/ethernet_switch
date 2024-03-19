@@ -85,16 +85,16 @@ wire    [15:0]  ram_dout_tag_1;
 wire    [63:0]  ram_dout_data_1;
 // reg     [63:0]  ram_dout_data_1_reg;
 
-(*MARK_DEBUG = "true"*) reg     [ 9:0]  ram_mgnt_addr_0;
-(*MARK_DEBUG = "true"*) reg             ram_mgnt_wr_0;
-(*MARK_DEBUG = "true"*) reg             ram_mgnt_en_0;
+reg     [ 9:0]  ram_mgnt_addr_0;
+reg             ram_mgnt_wr_0;
+reg             ram_mgnt_en_0;
 reg     [15:0]  ram_mgnt_din_tag_0;
 reg     [63:0]  ram_mgnt_din_data_0;
 wire    [15:0]  ram_mgnt_dout_tag_0;
 wire    [63:0]  ram_mgnt_dout_data_0;
-(*MARK_DEBUG = "true"*) reg     [ 9:0]  ram_mgnt_addr_1;
-(*MARK_DEBUG = "true"*) reg             ram_mgnt_wr_1;
-(*MARK_DEBUG = "true"*) reg             ram_mgnt_en_1;
+reg     [ 9:0]  ram_mgnt_addr_1;
+reg             ram_mgnt_wr_1;
+reg             ram_mgnt_en_1;
 reg     [15:0]  ram_mgnt_din_tag_1;
 reg     [63:0]  ram_mgnt_din_data_1;
 wire    [15:0]  ram_mgnt_dout_tag_1;
@@ -367,21 +367,24 @@ assign not_outlive_1=(live_time1!=0)?1:0;
     reg     [79:0]  mgnt_reg_ft_be_entry_wr;
     reg     [79:0]  mgnt_reg_ft_be_entry_rd;
 
-    (*MARK_DEBUG = "true"*) reg     [ 5:0]  mgnt_state, mgnt_state_next;
+    reg     [ 5:0]  mgnt_state, mgnt_state_next;
     reg             mgnt_rx_wr;
     reg     [ 7:0]  mgnt_rx_addr;
     reg     [MGNT_REG_WIDTH_L2-1:0]     mgnt_rx_cnt, mgnt_tx_cnt;
     reg     [   MGNT_REG_WIDTH-1:0]     mgnt_rx_buf, mgnt_tx_buf;
 
-    (*MARK_DEBUG = "true"*) reg     [15:0]  conf_state, conf_state_next;
+    reg     [15:0]  conf_state, conf_state_next;
+    reg     [15:0]  conf_cmd_buf;
+    reg             conf_cmd_req;
     reg     [ 9:0]  conf_scan_cnt_wr;
     reg     [ 9:0]  conf_scan_cnt_rd;
-    (*MARK_DEBUG = "true"*) wire            conf_scan_flush_hit_0;
-    (*MARK_DEBUG = "true"*) wire            conf_scan_flush_hit_1;
-    (*MARK_DEBUG = "true"*) wire            conf_scan_aging_hit_0;
-    (*MARK_DEBUG = "true"*) wire            conf_scan_aging_hit_1;
+    wire            conf_scan_flush_hit_0;
+    wire            conf_scan_flush_hit_1;
+    wire            conf_scan_aging_hit_0;
+    wire            conf_scan_aging_hit_1;
     reg     [15:0]  conf_aging_cnt_l;
-    (*MARK_DEBUG = "true"*) reg     [11:0]  conf_aging_cnt_h;
+    reg     [11:0]  conf_aging_cnt_h;
+    reg             conf_aging_req;
 
     assign  conf_scan_flush_hit_0 = ram_mgnt_dout_tag_0[15] && !ram_mgnt_dout_tag_0[14] && (|(ram_mgnt_dout_data_0[55:48] & mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][7:0]));
     assign  conf_scan_flush_hit_1 = ram_mgnt_dout_tag_1[15] && !ram_mgnt_dout_tag_1[14] && (|(ram_mgnt_dout_data_1[55:48] & mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][7:0]));
@@ -506,11 +509,11 @@ assign not_outlive_1=(live_time1!=0)?1:0;
 
     always @(*) begin
         case(conf_state)
-            'h0001: conf_state_next <=  (mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][15]) ? 'h0002 : // flush destinated entry
-                                        (mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][14]) ? 'h0004 : // write destinated entry
-                                        (mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][13]) ? 'h0008 : // read destinated entry
+            'h0001: conf_state_next <=  (conf_cmd_buf[15]) ? 'h0002 : // flush destinated entry
+                                        (conf_cmd_buf[14]) ? 'h0004 : // write destinated entry
+                                        (conf_cmd_buf[13]) ? 'h0008 : // read destinated entry
                                         'h2000;
-            'h0002: conf_state_next <=  (mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][12]) ? 'h0200 : 'h0100;
+            'h0002: conf_state_next <=  (conf_cmd_buf[12]) ? 'h0200 : 'h0100;
             'h0004: conf_state_next <=  'h2000;
             'h0008: conf_state_next <=  'h0020;
             'h0010: conf_state_next <=  'h0200;
@@ -522,8 +525,8 @@ assign not_outlive_1=(live_time1!=0)?1:0;
             'h0400: conf_state_next <=  'h0800;
             'h0800: conf_state_next <=  'h1000;
             'h1000: conf_state_next <=  (conf_scan_cnt_wr == 10'h3FF) ? 'h2000 : 'h0800;
-            'h2000: conf_state_next <=  (mgnt_state[4] && mgnt_rx_addr == MGNT_FT_BE_FUNC_CMD)          ? 'h0001 :
-                                        (conf_aging_cnt_h == 12'h9C3 && conf_aging_cnt_l == 16'hC34F)   ? 'h0010 :
+            'h2000: conf_state_next <=  conf_cmd_req    ? 'h0001 :
+                                        conf_aging_req  ? 'h0010 :
                                         'h2000;
             default: conf_state_next <= 'h2000;
         endcase
@@ -567,6 +570,28 @@ assign not_outlive_1=(live_time1!=0)?1:0;
 
     always @(posedge clk) begin
         if (!rstn) begin
+            conf_aging_req  <=  'b0;
+            conf_cmd_req    <=  'b0;
+        end
+        else begin
+            if (conf_state[4]) begin
+                conf_aging_req  <=  'b0;
+            end
+            else if (conf_aging_cnt_h == 12'h9C3 && conf_aging_cnt_l == 16'hC34F) begin
+                conf_aging_req  <=  'b1;
+            end
+            if (conf_state[0]) begin
+                conf_cmd_req    <=  'b0;
+            end
+            else if (mgnt_state[4] && mgnt_rx_addr == MGNT_FT_BE_FUNC_CMD) begin
+                conf_cmd_req    <=  'b1;
+                conf_cmd_buf    <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD];
+            end
+        end
+    end
+
+    always @(posedge clk) begin
+        if (!rstn) begin
             ram_mgnt_addr_0 <=  'b0;
             ram_mgnt_wr_0   <=  'b0;
             ram_mgnt_en_0   <=  'b0;
@@ -584,17 +609,17 @@ assign not_outlive_1=(live_time1!=0)?1:0;
             if (conf_state[1]) begin
                 conf_scan_cnt_rd    <=  'b0;
                 conf_scan_cnt_wr    <=  'b0;
-                if (!mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][12]) begin
-                    ram_mgnt_wr_0       <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][11] ? 
-                                            ~mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][10] : 1'b1;
-                    ram_mgnt_en_0       <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][11] ? 
-                                            ~mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][10] : 1'b1;
+                if (!conf_cmd_buf[12]) begin
+                    ram_mgnt_wr_0       <=  conf_cmd_buf[11] ? 
+                                            ~conf_cmd_buf[10] : 1'b1;
+                    ram_mgnt_en_0       <=  conf_cmd_buf[11] ? 
+                                            ~conf_cmd_buf[10] : 1'b1;
                     ram_mgnt_addr_0     <=  'b0;
                     ram_mgnt_din_tag_0  <=  'b0;
-                    ram_mgnt_wr_1       <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][11] ? 
-                                            mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][10] : 1'b1;
-                    ram_mgnt_en_1       <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][11] ? 
-                                            mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][10] : 1'b1;
+                    ram_mgnt_wr_1       <=  conf_cmd_buf[11] ? 
+                                            conf_cmd_buf[10] : 1'b1;
+                    ram_mgnt_en_1       <=  conf_cmd_buf[11] ? 
+                                            conf_cmd_buf[10] : 1'b1;
                     ram_mgnt_addr_1     <=  'b0;
                     ram_mgnt_din_tag_1  <=  'b0;  
                 end
@@ -610,22 +635,22 @@ assign not_outlive_1=(live_time1!=0)?1:0;
                 end
             end
             if (conf_state[2]) begin
-                ram_mgnt_wr_0       <=  ~mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][10];
-                ram_mgnt_en_0       <=  ~mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][10];
-                ram_mgnt_addr_0     <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][9:0];
+                ram_mgnt_wr_0       <=  ~conf_cmd_buf[10];
+                ram_mgnt_en_0       <=  ~conf_cmd_buf[10];
+                ram_mgnt_addr_0     <=  conf_cmd_buf[9:0];
                 ram_mgnt_din_tag_0  <=  mgnt_reg_ft_be_entry_wr[79:64];
                 ram_mgnt_din_data_0 <=  mgnt_reg_ft_be_entry_wr[63: 0];
-                ram_mgnt_wr_1       <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][10];
-                ram_mgnt_en_1       <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][10];
-                ram_mgnt_addr_1     <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][9:0];
+                ram_mgnt_wr_1       <=  conf_cmd_buf[10];
+                ram_mgnt_en_1       <=  conf_cmd_buf[10];
+                ram_mgnt_addr_1     <=  conf_cmd_buf[9:0];
                 ram_mgnt_din_tag_1  <=  mgnt_reg_ft_be_entry_wr[79:64];
                 ram_mgnt_din_data_1 <=  mgnt_reg_ft_be_entry_wr[63: 0];     
             end
             if (conf_state[3]) begin
-                ram_mgnt_en_0       <=  ~mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][10];
-                ram_mgnt_addr_0     <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][9:0];
-                ram_mgnt_en_1       <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][10];
-                ram_mgnt_addr_1     <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][9:0];   
+                ram_mgnt_en_0       <=  ~conf_cmd_buf[10];
+                ram_mgnt_addr_0     <=  conf_cmd_buf[9:0];
+                ram_mgnt_en_1       <=  conf_cmd_buf[10];
+                ram_mgnt_addr_1     <=  conf_cmd_buf[9:0];   
             end
             if (conf_state[4]) begin
                 conf_scan_cnt_rd    <=  'b0;
@@ -640,7 +665,7 @@ assign not_outlive_1=(live_time1!=0)?1:0;
                 ram_mgnt_en_1       <=  'b0;
             end
             if (conf_state[7]) begin
-                mgnt_reg_ft_be_entry_rd <=  mgnt_reg_fp_be[MGNT_FT_BE_ADDR_CMD][10] ? 
+                mgnt_reg_ft_be_entry_rd <=  conf_cmd_buf[10] ? 
                                             {ram_mgnt_dout_tag_1, ram_mgnt_dout_data_1} :
                                             {ram_mgnt_dout_tag_0, ram_mgnt_dout_data_0};
             end

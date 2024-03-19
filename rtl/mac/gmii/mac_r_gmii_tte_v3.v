@@ -186,6 +186,8 @@ reg     [ 3:0]  ptp_delay_state, ptp_delay_state_next;
 reg     [19:0]  ptp_timeout_us; // 5us per cycle
 reg     [15:0]  ptp_timeout;
 
+reg             ptp_ethertype_ip;
+
 reg     [63:0]  counter_ns_delay;
 always @(*) begin
     case(ptp_delay_state)
@@ -817,7 +819,7 @@ always @(posedge rx_clk  or negedge rstn_mac)
             // lldp pre-route
             ptr_fifo_din[12] <= mac_conf_reg[0];
             // if(!lldp_state[0]) ptr_fifo_din[19:16]<=#DELAY LLDP_DBG_PORT[3:0];
-            if(mac_conf_reg[0]) ptr_fifo_din[19:16]<=#DELAY tailtag_port[3:0];
+            if(mac_conf_reg[0]) ptr_fifo_din[19:16]<=#DELAY ptp_ethertype_ip ? 4'b0 : tailtag_port[3:0];
             else if(!lldp_state[0]) ptr_fifo_din[19:16]<=#DELAY lldp_port[3:0];
             else ptr_fifo_din[19:16]<=#DELAY 4'b0;
             ptr_fifo_wr<=#DELAY 1;
@@ -959,6 +961,7 @@ always @(posedge rx_clk  or negedge rstn_mac)
         // counter_ns_reg<=#DELAY 0;
         ptp_message_pad<=#DELAY 0;
         ptp_time_req<=#DELAY 0;
+        ptp_ethertype_ip<=#DELAY 0;
     end
     else begin
         ptp_time_req<=#DELAY 0;
@@ -967,17 +970,31 @@ always @(posedge rx_clk  or negedge rstn_mac)
             if(!speed[1] && ram_cnt_be==13)begin //mii
                 if(data_ram_dout==PTP_VALUE_HIGH)begin
                     ptp_state<=#DELAY 1;
+                    ptp_ethertype_ip<=#DELAY 0;
                 end
-                if(data_ram_dout==UDP_V4_VALUE_HIGH)begin
+                else if(data_ram_dout==UDP_V4_VALUE_HIGH)begin
                     ptp_state<=#DELAY 35;
+                end
+                else if(data_ram_dout==UDP_V6_VALUE_HIGH)begin
+                    ptp_state<=#DELAY 45;
+                end
+                else begin
+                    ptp_ethertype_ip<=#DELAY 0;
                 end
             end
             else if(speed[1] && ram_cnt_be==14)begin //gmii
                 if(data_ram_dout==PTP_VALUE_HIGH)begin
                     ptp_state<=#DELAY 8;
+                    ptp_ethertype_ip<=#DELAY 0;
                 end
-                if(data_ram_dout==UDP_V4_VALUE_HIGH)begin
+                else if(data_ram_dout==UDP_V4_VALUE_HIGH)begin
                     ptp_state<=#DELAY 35;
+                end
+                else if(data_ram_dout==UDP_V6_VALUE_HIGH)begin
+                    ptp_state<=#DELAY 45;
+                end
+                else begin
+                    ptp_ethertype_ip<=#DELAY 0;
                 end
             end
         end
@@ -1233,9 +1250,11 @@ always @(posedge rx_clk  or negedge rstn_mac)
             if ((!speed[1] && ram_cnt_be==14) || (speed[1] && ram_cnt_be==15))begin
                 if(data_ram_dout==UDP_V4_VALUE_LOW)begin
                     ptp_state<=#DELAY 36;
+                    ptp_ethertype_ip<=#DELAY 1;
                 end
                 else begin
                     ptp_state<=#DELAY 0;
+                    ptp_ethertype_ip<=#DELAY 0;
                 end
             end
         end
@@ -1361,6 +1380,18 @@ always @(posedge rx_clk  or negedge rstn_mac)
                 end
                 else begin
                     ptp_sel<=#DELAY 1;
+                end
+            end
+        end
+        45:begin
+            if ((!speed[1] && ram_cnt_be==14) || (speed[1] && ram_cnt_be==15))begin
+                if(data_ram_dout==UDP_V6_VALUE_LOW)begin
+                        ptp_state<=#DELAY 0;
+                        ptp_ethertype_ip<=#DELAY 1;
+                end
+                else begin
+                        ptp_state<=#DELAY 0;
+                        ptp_ethertype_ip<=#DELAY 0;
                 end
             end
         end
@@ -1977,8 +2008,9 @@ always @(posedge rx_clk  or negedge rstn_mac)
             if(crc_result==CRC_RESULT_VALUE) tteptr_fifo_din[13]<=#DELAY 1'b0;
             else tteptr_fifo_din[13]<=#DELAY 1'b1;
             tteptr_fifo_din[12] <= mac_conf_reg[0];
-            if(mac_conf_reg[0]) tteptr_fifo_din[19:16]<=#DELAY tailtag_port[3:0];
-            else tteptr_fifo_din[19:16]<=#DELAY 4'b0;
+            // if(mac_conf_reg[0]) tteptr_fifo_din[19:16]<=#DELAY tailtag_port[3:0];
+            // else tteptr_fifo_din[19:16]<=#DELAY 4'b0;
+            tteptr_fifo_din[19:16]<=#DELAY 0;
             tteptr_fifo_wr<=#DELAY 1;
             tte_state<=#DELAY 5;
         end
