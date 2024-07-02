@@ -34,7 +34,7 @@ input       [1:0]   speed,  //ethernet speed 00:10M 01:100M 10:1000M
 // input       [7:0]   speed_ext,
 
 input               data_fifo_rd,
-output      [7:0]   data_fifo_dout,
+output      [8:0]   data_fifo_dout,
 input               ptr_fifo_rd, 
 output      [19:0]  ptr_fifo_dout,
 output              ptr_fifo_empty,
@@ -703,6 +703,7 @@ reg     [11:0]  load_byte_be;
 reg     [7:0]	data_fifo_din_reg;
 reg             data_fifo_wr;
 reg             data_fifo_wr_reg;
+reg             data_fifo_wr_reg_1;
 (*MARK_DEBUG="true"*) wire            data_fifo_wr_dv;
 (*MARK_DEBUG="true"*) wire    [11:0]  data_fifo_depth;
 (*MARK_DEBUG="true"*) reg     [19:0]  ptr_fifo_din;
@@ -738,10 +739,12 @@ assign  data_fifo_wr_dv = data_fifo_wr_reg & (ram_nibble_be[0] | speed[1]);
 //============================================  
 always @(posedge rx_clk or negedge rstn_mac)
     if(!rstn_mac)begin
-        data_fifo_wr_reg<=#DELAY 0;
+        data_fifo_wr_reg <= #DELAY 0;
+        data_fifo_wr_reg_1 <= #DELAY 0;
         end
     else begin
-        data_fifo_wr_reg<=#DELAY data_fifo_wr;
+        data_fifo_wr_reg <= #DELAY data_fifo_wr;
+        data_fifo_wr_reg_1 <= #DELAY data_fifo_wr_reg;
         end
 
 always @(posedge rx_clk or negedge rstn_mac)
@@ -2022,15 +2025,16 @@ always @(posedge rx_clk  or negedge rstn_mac)
         endcase
         end
 
-(*MARK_DEBUG="true"*) wire    [7:0]   data_fifo_din;
+(*MARK_DEBUG="true"*) wire    [8:0]   data_fifo_din;
 
 assign  data_ram_addrb = ram_cnt_be[10:0] | ram_cnt_tte[10:0] ;
 assign  calc = data_fifo_wr_dv | tte_fifo_wr_dv;
 assign  d_valid = data_fifo_wr_dv | tte_fifo_wr_dv;
 
-assign  data_fifo_din   =   (lldp_sel==1)   ?   lldp_data   :
-                            (ptp_sel==1)    ?   ptp_data    : 
-                            data_fifo_din_reg;
+assign  data_fifo_din[7:0]  =   (lldp_sel==1)   ?   lldp_data   :
+                                (ptp_sel==1)    ?   ptp_data    : 
+                                data_fifo_din_reg;
+assign  data_fifo_din[8]    =   (data_fifo_wr_reg_1 ^ data_fifo_wr_reg) || (data_fifo_wr ^ data_fifo_wr_reg);
 
 always @(posedge rx_clk or negedge rstn_mac) begin
     if (!rstn_mac) begin
@@ -2091,15 +2095,15 @@ end
 
 
 
-afifo_reg_w8_d4k u_data_fifo (
+afifo_reg_w9_d4k u_data_fifo (
   .rst(!rstn_sys),                      // input rst
   .wr_clk(rx_clk),                      // input wr_clk
-  .rd_clk(clk),                         // input rd_clk
-  .din(data_fifo_din),                  // input [7 : 0] din
   .wr_en(data_fifo_wr_dv),              // input wr_en
+  .din(data_fifo_din),                  // input [7 : 0] din
+  .full(dbg_data_full), 
+  .rd_clk(clk),                         // input rd_clk
   .rd_en(data_fifo_rd),                 // input rd_en
   .dout(data_fifo_dout),                // output [7 : 0]       
-  .full(dbg_data_full), 
   .empty(dbg_data_empty), 
   .rd_data_count(dbg_data_fifo_depth),  // output [11 : 0] rd_data_count
   .wr_data_count(data_fifo_depth) 	    // output [11 : 0] wr_data_count

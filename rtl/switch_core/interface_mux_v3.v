@@ -3,26 +3,26 @@ module interface_mux_v3 (
     input           clk_sys,
     input           rstn_sys,
     // mac 0 if
-    output          rx_data_fifo_rd0,
-    input   [ 7:0]  rx_data_fifo_dout0,
+    (*MARK_DEBUG="true"*) output          rx_data_fifo_rd0,
+    (*MARK_DEBUG="true"*) input   [ 8:0]  rx_data_fifo_dout0,
     output          rx_ptr_fifo_rd0,
     input   [19:0]  rx_ptr_fifo_dout0,
     input           rx_ptr_fifo_empty0,
     // mac 1 if
-    output          rx_data_fifo_rd1,
-    input   [ 7:0]  rx_data_fifo_dout1,
+    (*MARK_DEBUG="true"*) output          rx_data_fifo_rd1,
+    (*MARK_DEBUG="true"*) input   [ 8:0]  rx_data_fifo_dout1,
     output          rx_ptr_fifo_rd1,
     input   [19:0]  rx_ptr_fifo_dout1,
     input           rx_ptr_fifo_empty1,
     // mac 2 if
-    output          rx_data_fifo_rd2,
-    input   [ 7:0]  rx_data_fifo_dout2,
+    (*MARK_DEBUG="true"*) output          rx_data_fifo_rd2,
+    (*MARK_DEBUG="true"*) input   [ 8:0]  rx_data_fifo_dout2,
     output          rx_ptr_fifo_rd2,
     input   [19:0]  rx_ptr_fifo_dout2,
     input           rx_ptr_fifo_empty2,
     // mac 3 if
-    output          rx_data_fifo_rd3,
-    input   [ 7:0]  rx_data_fifo_dout3,
+    (*MARK_DEBUG="true"*) output          rx_data_fifo_rd3,
+    (*MARK_DEBUG="true"*) input   [ 8:0]  rx_data_fifo_dout3,
     output          rx_ptr_fifo_rd3,
     input   [19:0]  rx_ptr_fifo_dout3,
     input           rx_ptr_fifo_empty3,
@@ -44,9 +44,9 @@ module interface_mux_v3 (
     reg     [12:0]  cnt_tgt;
 
     // dest data fifo ctrl
-    reg     [ 1:0]  sfifo_wr;
+    reg     [ 2:0]  sfifo_wr;
     reg             sfifo_en;
-    reg     [ 7:0]  sfifo_din;
+    reg     [ 8:0]  sfifo_din;
     // wire    [13:0]  sfifo_cnt;
     wire    [11:0]  sfifo_cnt;
     // dest ptr fifo ctrl
@@ -55,7 +55,7 @@ module interface_mux_v3 (
     wire            ptr_sfifo_full;
     // src data fifo sel
     (*EXTRACT_ENABLE = "no"*) reg     [ 3:0]  rx_data_fifo_rd;
-    wire    [ 7:0]  rx_data_fifo_dout;
+    wire    [ 8:0]  rx_data_fifo_dout;
     // src ptr fifo sel
     reg     [ 3:0]  rx_ptr_fifo_rd;
     wire    [19:0]  rx_ptr_fifo_dout;
@@ -191,7 +191,7 @@ module interface_mux_v3 (
             if (!ifmux_state[0]) begin
                 // sfifo_wr        <=  !error;
                 // sfifo_wr        <=  {sfifo_wr[0], !error && sfifo_en};
-                sfifo_wr        <=  {!error && sfifo_wr[0], sfifo_en};
+                sfifo_wr        <=  {sfifo_wr[1], !error && sfifo_wr[0], sfifo_en};
                 // sfifo_din       <=  rx_data_fifo_dout;
                 sfifo_din       <=  rx_data_fifo_dout;
             end
@@ -246,7 +246,7 @@ module interface_mux_v3 (
     sfifo_reg_w8_d4k    u_sfifo(
         .clk(clk_sys),
         .rst(!rstn_sys),
-        .din(sfifo_din),
+        .din(sfifo_din[7:0]),
         .wr_en(sfifo_wr[1]),
         .rd_en(sfifo_rd),
         .dout(sfifo_dout),
@@ -269,5 +269,20 @@ module interface_mux_v3 (
             .underflow(dbg_ptr_uf),
             .overflow(dbg_ptr_of)	
         );
+
+    (*MARK_DEBUG="true"*)   reg dbg_length_fault;
+    always @(posedge clk_sys) begin
+        if (!rstn_sys) begin
+            dbg_length_fault    <=  'b0;
+        end
+        else begin
+            if (!error && !sfifo_din[8] && sfifo_wr == 3'b011) begin
+                dbg_length_fault    <=  'b1;
+            end
+            // else if (!error && !sfifo_din[8] && sfifo_wr == 3'b110) begin
+            //     dbg_length_fault    <=  'b1;
+            // end
+        end
+    end
 
 endmodule

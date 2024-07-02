@@ -92,7 +92,7 @@ module top_switch (
     wire        emac0_tx_ptr_fifo_empty;
 
     wire        emac0_rx_data_fifo_rd;
-    wire [ 7:0] emac0_rx_data_fifo_dout;
+    wire [ 8:0] emac0_rx_data_fifo_dout;
     wire        emac0_rx_ptr_fifo_rd;
     wire [19:0] emac0_rx_ptr_fifo_dout;
     wire        emac0_rx_ptr_fifo_empty;
@@ -118,7 +118,7 @@ module top_switch (
     wire        emac1_tx_ptr_fifo_empty;
 
     wire        emac1_rx_data_fifo_rd;
-    wire [ 7:0] emac1_rx_data_fifo_dout;
+    wire [ 8:0] emac1_rx_data_fifo_dout;
     wire        emac1_rx_ptr_fifo_rd;
     wire [19:0] emac1_rx_ptr_fifo_dout;
     wire        emac1_rx_ptr_fifo_empty;
@@ -144,7 +144,7 @@ module top_switch (
     wire        emac2_tx_ptr_fifo_empty;
 
     wire        emac2_rx_data_fifo_rd;
-    wire [ 7:0] emac2_rx_data_fifo_dout;
+    wire [ 8:0] emac2_rx_data_fifo_dout;
     wire        emac2_rx_ptr_fifo_rd;
     wire [19:0] emac2_rx_ptr_fifo_dout;
     wire        emac2_rx_ptr_fifo_empty;
@@ -170,7 +170,7 @@ module top_switch (
     wire        emac3_tx_ptr_fifo_empty;
 
     wire        emac3_rx_data_fifo_rd;
-    wire [ 7:0] emac3_rx_data_fifo_dout;
+    wire [ 8:0] emac3_rx_data_fifo_dout;
     wire        emac3_rx_ptr_fifo_rd;
     wire [19:0] emac3_rx_ptr_fifo_dout;
     wire        emac3_rx_ptr_fifo_empty;
@@ -617,25 +617,25 @@ module top_switch (
     interface_mux_v3 u_tteinterface_mux (
         .clk_sys(clk),
         .rstn_sys(rstn_sys),
-        .rx_data_fifo_dout0(emac0_rx_tte_fifo_dout),
+        .rx_data_fifo_dout0({1'b0, emac0_rx_tte_fifo_dout}),
         .rx_data_fifo_rd0(emac0_rx_tte_fifo_rd),
         .rx_ptr_fifo_dout0(emac0_rx_tteptr_fifo_dout),
         .rx_ptr_fifo_rd0(emac0_rx_tteptr_fifo_rd),
         .rx_ptr_fifo_empty0(emac0_rx_tteptr_fifo_empty),
 
-        .rx_data_fifo_dout1(emac1_rx_tte_fifo_dout),
+        .rx_data_fifo_dout1({1'b0, emac1_rx_tte_fifo_dout}),
         .rx_data_fifo_rd1(emac1_rx_tte_fifo_rd),
         .rx_ptr_fifo_dout1(emac1_rx_tteptr_fifo_dout),
         .rx_ptr_fifo_rd1(emac1_rx_tteptr_fifo_rd),
         .rx_ptr_fifo_empty1(emac1_rx_tteptr_fifo_empty),
 
-        .rx_data_fifo_dout2(emac2_rx_tte_fifo_dout),
+        .rx_data_fifo_dout2({1'b0, emac2_rx_tte_fifo_dout}),
         .rx_data_fifo_rd2(emac2_rx_tte_fifo_rd),
         .rx_ptr_fifo_dout2(emac2_rx_tteptr_fifo_dout),
         .rx_ptr_fifo_rd2(emac2_rx_tteptr_fifo_rd),
         .rx_ptr_fifo_empty2(emac2_rx_tteptr_fifo_empty),
 
-        .rx_data_fifo_dout3(emac3_rx_tte_fifo_dout),
+        .rx_data_fifo_dout3({1'b0, emac3_rx_tte_fifo_dout}),
         .rx_data_fifo_rd3(emac3_rx_tte_fifo_rd),
         .rx_ptr_fifo_dout3(emac3_rx_tteptr_fifo_dout),
         .rx_ptr_fifo_rd3(emac3_rx_tteptr_fifo_rd),

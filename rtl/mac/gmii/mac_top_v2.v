@@ -35,7 +35,7 @@ module mac_top_v2(
     input              tx_ptr_fifo_empty,
                   
     input             rx_data_fifo_rd,
-    output    [7:0]   rx_data_fifo_dout,
+    output    [8:0]   rx_data_fifo_dout,
     input             rx_ptr_fifo_rd,
 	output    [19:0]  rx_ptr_fifo_dout,
     output            rx_ptr_fifo_empty,
